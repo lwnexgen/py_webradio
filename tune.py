@@ -106,27 +106,16 @@ def render_game_info(input_json):
     except:
         traceback.print_exc()
         return data
-    date_obj = iso8601.parse_date(data.get('scheduled')) + datetime.timedelta(hours=-6)
+    date_obj = iso8601.parse_date(data.get('scheduled'))
     gamedate = date_obj.strftime("%A, %B %d %Y")
     gametime = date_obj.strftime("%I:%M %p").lstrip('0')
     date = "{date} {time}".format(date=gamedate, time=gametime)
-    city = data.get('venue').get('city')
-    state = data.get('venue').get('state')
-    stadium = data.get('venue').get('name', '')
-    location = "{city}, {state}".format(
-        city=city, state=state)
     homef = data.get('home')
     awayf = data.get('away')
-    if isinstance(homef, dict):
-        homef = homef.get('alias')
-    if isinstance(awayf, dict):
-        awayf = awayf.get('alias')
-    title = data.get('title', '')
     matchup = "{away} @ {home}".format(
         away=known_abbrev.get(awayf, awayf),
         home=known_abbrev.get(homef, homef)
     )
-    tv = 'TV: {}'.format(data.get('broadcast', {}).get('network'))
     gametemplate = env.get_template('game.html.jinja')
     return gametemplate.render(
         **vars()
