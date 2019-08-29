@@ -56,10 +56,11 @@ skipfwd5.click(function() {
     )
 });
 
+$("#controls").append(skipbck10);
 $("#controls").append(skipbck5);
 $("#controls").append(skipbck);
 $("#controls").append(skipfwd);
 $("#controls").append(skipfwd5);
+$("#controls").append(skipfwd10);
 
 player.play()
-
