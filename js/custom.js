@@ -1,66 +1,73 @@
+String.prototype.format = function () {
+  var i = 0, args = arguments;
+  return this.replace(/{}/g, function () {
+    return typeof args[i] != 'undefined' ? args[i++] : '';
+  });
+};
+
+var buffered_segments = 3;
+var HLSJS = Clappr.HLS.HLSJS;
 var player = new Clappr.Player(
     {
-	source: "http://***REMOVED***:***REMOVED***/webtune_live/101_5.m3u8",
+	source: {
+	    source: "http://***REMOVED***:***REMOVED***/webtune_live/101_5.m3u8"
+	},
 	parentId: "#player",
 	autoPlay: false,
 	audioOnly: true,
-	maxBufferLength: 180,
+	actualLiveTime: true,
+	hideMediaControl: false,
+	hlsjsConfig: {
+	    liveSyncDurationCount: buffered_segments
+	}
     }
 );
 
-var skipfwd = $('<input>', {
-    'id': 'skipfwd1',
-    'type': 'button',
-    'value': '+1',
+function addSkip(value) {
+    var btnID = 'skipBtn' + value.toString().replace('-', 'Back').replace('.', 'Point');
+    var btnVal = value.toString();
+    if (value > 0) {
+	btnVal = "+" + btnVal;
+    }
+    var skipBtn = $('<button>', {
+	'id': btnID,
+	'type': 'submit',
+	'class': 'btn btn-default',
+    }).text(btnVal);
+    skipBtn.click(function() {
+	var seektime = player.getCurrentTime() + value;
+	player.seek(seektime);
+    });
+    return skipBtn;
+}
+
+$("#controls").append(addSkip(-10));
+$("#controls").append(addSkip(-5));
+$("#controls").append(addSkip(-1));
+$("#controls").append(addSkip(-.5));
+$("#controls").append(addSkip(.5));
+$("#controls").append(addSkip(1));
+$("#controls").append(addSkip(5));
+$("#controls").append(addSkip(10));
+
+player.resize({
+    height: $("#controls").height() * 2,
+    width: $("#controls").width()
 });
+player.play();
 
-var skipbck = $('<input>', {
-    'id': 'skipbck1',
-    'type': 'button',
-    'value': '-1',
+function updDisplay(event, data) {
+    var live_ts = player.core.getCurrentPlayback()._hls.liveSyncPosition;
+    var total_ts = player.core.getCurrentPlayback()._hls.streamController.levels[0].details.totalduration;
+    var current_segment = data.frag.sn;
+    var current_ts = player.getCurrentTime() - (total_ts - live_ts);
+    var offset = -1 * (live_ts - current_ts)
+    var display = "{}".format(
+	Math.round(((offset * 100) + Number.EPSILON) / 100)
+    );
+    $("#offset").text(display);
+};
+
+player.core.getCurrentPlayback()._hls.on(HLSJS.Events.FRAG_CHANGED, function(event, data) {
+    updDisplay(event, data);
 });
-
-skipbck.click(function() {
-    player.seek(
-	player.getCurrentTime() - 1
-    )
-});
-
-skipfwd.click(function() {
-    player.seek(
-	player.getCurrentTime() + 1
-    )
-});
-
-var skipfwd5 = $('<input>', {
-    'id': 'skipfwd5',
-    'type': 'button',
-    'value': '+5',
-});
-
-var skipbck5 = $('<input>', {
-    'id': 'skipbck5',
-    'type': 'button',
-    'value': '-5',
-});
-
-skipbck5.click(function() {
-    player.seek(
-	player.getCurrentTime() - 5
-    )
-});
-
-skipfwd5.click(function() {
-    player.seek(
-	player.getCurrentTime() + 5
-    )
-});
-
-$("#controls").append(skipbck10);
-$("#controls").append(skipbck5);
-$("#controls").append(skipbck);
-$("#controls").append(skipfwd);
-$("#controls").append(skipfwd5);
-$("#controls").append(skipfwd10);
-
-player.play()

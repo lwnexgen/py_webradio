@@ -10,6 +10,8 @@ import os
 import requests
 import subprocess
 import arrow
+import sys
+import hashlib
 
 SOURCES = {
     "ncaab": "http://www.vegasinsider.com/college-basketball/odds/las-vegas/",
@@ -26,18 +28,17 @@ favorites = {
 tuner = {
     'nfl': {
         'station': 101.5,
-        'duration': 4.0
+        'duration': 4
     },
     'ncaab': {
         'station': 101.5,
-        'duration': 4.0,
+        'duration': 4
     },
     'ncaaf': {
         'station': 101.5,
-        'duration': 4.5
+        'duration': 5
     }
 }
-
 
 def scrape_sport(sport, url):
     if not url:
@@ -48,7 +49,7 @@ def scrape_sport(sport, url):
     for matchup in [
             x.parent for x in soup.findAll('span', {'class': 'cellTextHot'})
     ]:
-        home_e, away_e = matchup.findAll('b')
+        away_e, home_e = matchup.findAll('b')
         gameday, gametime = matchup.findAll('span').pop().text.split(' ', 1)
         month, day = gameday.split('/')
         now = datetime.datetime.now()
@@ -66,9 +67,7 @@ def scrape_sport(sport, url):
         hour = int(hour_s)
         minute = int(minute_s)
         if period == 'PM':
-            if hour == 12:
-                hour = 0
-            else:
+            if hour < 12:
                 hour += 12
         try:
             est_scheduled_obj = arrow.get(
@@ -79,13 +78,17 @@ def scrape_sport(sport, url):
             import traceback ; traceback.print_exc()
             import pdb ; pdb.set_trace()
         scheduled = arrow.get(est_scheduled_obj).to('US/Central')
+        hl = hashlib.md5()
+        hl.update(home_e.text + away_e.text + scheduled.isoformat())
         matchups.append({
             "sport": sport,
             "scheduled": scheduled.isoformat(),
+            "scheduled_at": scheduled.shift(minutes=-10).strftime("%I:%M %p %Y-%m-%d"),
             "day": scheduled.strftime('%m-%d'),
             "time": scheduled.strftime('%I:%M %p'),
             "away": away_e.text,
-            "home": home_e.text
+            "home": home_e.text,
+            "id": hl.hexdigest()
         })
     return matchups
 
@@ -121,7 +124,9 @@ cat > {fn} << 'EOF'
 EOF
 
 pushd ../../
-python tune.py {station} --gameinfo={fn} --duration={duration}hrs
+pkill -9 -f softfm
+sleep 3
+python tune.py {station} --gameinfo={fn} --duration={duration}hr 2>&1 | grep -v "Opening '/var" | tee /tmp/webtune.log
 popd
 """.format(
     fn="/tmp/{}.json".format(os.path.basename(fn)),
@@ -135,13 +140,32 @@ def queue(config):
     last_d = "data/scripts"
     queued = _ex_q(last_d)
     if queued:
-        last = int(os.path.basename(queued[-1]))
-    _write_cat_cfg(os.path.join(last_d, str(last + 1)), config)
+        for x in queued:
+            if str(config['id']) in open(x).read():
+                print("Already have {} @ {} queued".format(config['away'], config['home']))
+                return
+        last = int(os.path.basename(queued[-1]).split('_')[0])
+    script = (os.path.join(last_d, "{}_{}_{}".format(
+        str(last + 1).zfill(2),
+        config['away'].replace(' ', "-"),
+        config['home'].replace(' ', "-")))
+    )
+    _write_cat_cfg(script, config)
+    pwd = os.getcwd()
+    try:
+        os.chdir(last_d)
+        at_command = ['at', '-f', os.path.basename(script), config['scheduled_at']]
+        runcommand(at_command)
+    except:
+        import traceback
+        traceback.print_exc()
+    finally:
+        os.chdir(pwd)
 
 def schedule():
     matchups = scrape()
     upcoming = []
-    for matchup in matchups:
+    for matchup in sorted(matchups, key=lambda x: x['scheduled']):
         for favorite in favorites[matchup["sport"]]:
             if favorite in str(matchup):
                 queue(matchup)
