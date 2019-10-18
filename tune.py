@@ -123,7 +123,9 @@ def render_game_info(input_json):
 
 rendermap = {
     'tuner.html': 'tuner.html.jinja',
-    'js/custom.js': 'custom.js.jinja'
+    'tuner_local.html': 'tuner.html.jinja',
+    'js/custom.js': 'custom.js.jinja',
+    'js/custom_local.js': 'custom.js.jinja'
 }
 
 if __name__ == '__main__':
@@ -137,9 +139,16 @@ if __name__ == '__main__':
     gameinfo = render_game_info(args.gameinfo)
     for output, templatename in rendermap.iteritems():
         with open(output, 'w') as outfp:
+            host = "***REMOVED***:***REMOVED***"
+            jsfile = "custom.js"
+            if 'local' in output:
+                host = "***REMOVED***:***REMOVED***"
+                jsfile = "custom_local.js"
             outfp.write(env.get_template(templatename).render(
                 gameinfo=gameinfo,
-                station_readable=str(station).replace('.', '_')
+                station_readable=str(station).replace('.', '_'),
+                jsfile=jsfile,
+                server_host=host
             ))
             outfp.flush()
     check_call(['make', 'deploy'])

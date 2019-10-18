@@ -10,15 +10,21 @@
   <meta name="description" content="Web Radio Frontend">
   <meta name="author" content="Sam Gardner">
   <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
-  <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/clappr/clappr@latest/dist/clappr.min.js"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js"></script>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
 </head>
 <body>
-  <div id="player"></div>
-  <div id="controls"></div>
+  <div id="playback">
+    <div id="player"></div>
+    <div id="controls" class="btn-group btn-group-lg"></div>
+    <div id="controlinfo" class="btn-group btn-group-lg">
+      <button id="offset" type="button" class="btn btn-default" disabled="disabled">00</button>
+    </div>
+  </div>
   <div id="gameinfo">
     
-<h3>Thursday, August 29 2019 7:00 PM</h3>
-<h3>Green Bay @ Kansas City</h2>
+<h3>Monday, October 14 2019 7:15 PM</h3>
+<h3>Detroit @ Green Bay</h2>
 <h4></h3>
 <h5></h4>
 <h4></h4>
