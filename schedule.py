@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+"""
+Scrape vegasinsider.com for gametime information
+"""
 from bs4 import BeautifulSoup as Soup
 
 from pipes import quote
@@ -14,15 +17,17 @@ import sys
 import hashlib
 
 SOURCES = {
-    "ncaab": "http://www.vegasinsider.com/college-basketball/odds/las-vegas/",
-    "ncaaf": "http://www.vegasinsider.com/college-football/odds/las-vegas/",
-    "nfl": "http://www.vegasinsider.com/nfl/odds/las-vegas/"
+    "ncaab": "https://www.vegasinsider.com/college-basketball/odds/las-vegas/",
+    "ncaaf": "https://www.vegasinsider.com/college-football/odds/las-vegas/",
+    "nfl": "https://www.vegasinsider.com/nfl/odds/las-vegas/",
+    "nba": "https://www.vegasinsider.com/nba/odds/las-vegas/"
 }
 
 favorites = {
     'nfl': ['Green Bay'],
     'ncaaf': ['Wisconsin'],
-    'ncaab': ['Wisconsin']
+    'ncaab': ['Wisconsin'],
+    'nba': ['Milwaukee']
 }
 
 tuner = {
@@ -37,10 +42,22 @@ tuner = {
     'ncaaf': {
         'station': 101.5,
         'duration': 5
+    },
+    'nba': {
+        'station': 100.5,
+        'duration': 4
     }
 }
 
 def scrape_sport(sport, url):
+    """
+    Scape the given sport for date/time and opponent info
+
+    1) Pull each table row from site
+    2) Parse out home/away and gameday/time info
+    3) Figure out how to translate reported EST to CST (ugly!)
+    4) Return gameinfo JSONs in list
+    """
     if not url:
         return []
     src = requests.get(url).text
@@ -52,6 +69,7 @@ def scrape_sport(sport, url):
         away_e, home_e = matchup.findAll('b')
         gameday, gametime = matchup.findAll('span').pop().text.split(' ', 1)
         month, day = gameday.split('/')
+
         now = datetime.datetime.now()
         if now.month > month:
             year = now.year + 1
@@ -76,7 +94,6 @@ def scrape_sport(sport, url):
             )
         except:
             import traceback ; traceback.print_exc()
-            import pdb ; pdb.set_trace()
         scheduled = arrow.get(est_scheduled_obj).to('US/Central')
         hl = hashlib.md5()
         hl.update(home_e.text + away_e.text + scheduled.isoformat())
@@ -93,17 +110,28 @@ def scrape_sport(sport, url):
     return matchups
 
 def scrape():
+    """
+    Scrape all sports
+    """
     matchups = []
     for sport, url in SOURCES.items():
         matchups += scrape_sport(sport, url)
     return matchups
 
 def parse_daily(date):
+    """
+    Normalize date to (to play along with scraper site)
+
+    MM-DD
+    """
     return '{}-{}'.format(
         str(date.month).lstrip('0').zfill(2),
         str(date.day).lstrip('0').zfill(2))
 
 def runcommand(command, simulate=False, silent=False):
+    """
+    Thin wrapper around subprocess for debugging commands
+    """
     if not silent:
         print " ".join([quote(x) for x in command])
     if simulate:
@@ -111,12 +139,18 @@ def runcommand(command, simulate=False, silent=False):
     return subprocess.check_output(command)
 
 def _ex_q(scriptdir):
+    """
+    Grab sorted list of existing queued scripts
+    """
     if not os.path.exists(scriptdir):
         os.makedirs(scriptdir)
         return []
     return sorted(glob.glob(os.path.join(scriptdir, "*")))
 
 def _write_cat_cfg(fn, config):
+    """
+    Write a script that we can hand off to at(1) for scheduling
+    """
     with open(fn, 'w') as script:
         script.write("""#!/bin/sh
 cat > {fn} << 'EOF'
@@ -135,15 +169,27 @@ popd
     duration=tuner.get(config['sport'])['duration']))
 
 def queue(config):
+    """
+    Add an event to the queued list of events
+
+    param:config - dict of event information
+
+    1) Get the existing queue of events
+    2) Verify that this event isn't already queued
+    3) Queue this event via at(1)
+    """
     print(json.dumps(config, indent=2))
     last = 0
     last_d = "data/scripts"
+    # Existing queue
     queued = _ex_q(last_d)
+    # Super ugly hashing implementation to ensure that a rescheduled game isn't double-queued
     if queued:
         for x in queued:
-            if str(config['id']) in open(x).read():
-                print("Already have {} @ {} queued".format(config['away'], config['home']))
-                return
+            with open(x, 'r') as qfp:
+                if str(config['id']) in qfp.read():
+                    print("Already have {} @ {} queued".format(config['away'], config['home']))
+                    return
         last = int(os.path.basename(queued[-1]).split('_')[0])
     script = (os.path.join(last_d, "{}_{}_{}".format(
         str(last + 1).zfill(2),
@@ -163,6 +209,9 @@ def queue(config):
         os.chdir(pwd)
 
 def schedule():
+    """
+    Scrape all upcoming events for my favorite teams over the next couple of days
+    """
     matchups = scrape()
     upcoming = []
     for matchup in sorted(matchups, key=lambda x: x['scheduled']):

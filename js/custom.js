@@ -10,7 +10,7 @@ var HLSJS = Clappr.HLS.HLSJS;
 var player = new Clappr.Player(
     {
 	source: {
-	    source: "http://SECRET:SECRET/webtune_live/101_5.m3u8"
+	    source: "http://mumbly.duckdns.org:56789/webtune_live/101_5.m3u8"
 	},
 	parentId: "#player",
 	autoPlay: false,
