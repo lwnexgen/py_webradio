@@ -32,10 +32,11 @@ services:
     volumes:
       - webdata:/usr/share/nginx/html:ro
       - ./certs:/etc/letsencrypt:rw
+    env_file:
+      - tuner-env.env
     ports:
       - "192.168.0.197:60918:80"
       - "192.168.0.197:443:443"
-    restart: always
 volumes:
   webdata:
   data:
