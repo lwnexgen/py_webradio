@@ -1,21 +1,24 @@
-#/usr/bin/env python
+#!pysched/bin/python
 from subprocess import Popen, PIPE, CalledProcessError, check_call, check_output
 from jinja2 import Environment, FileSystemLoader
 
 import argparse
-import tempfile
 import atexit
 import datetime
 import glob
+import iso8601
 import json
+import logging
 import math
 import os
 import pint
 import shlex
+import sys
+import tempfile
 import time
 import traceback
-import iso8601
-import sys
+
+log = logging.getLogger()
 
 env = Environment(
     loader=FileSystemLoader('templates')
@@ -25,6 +28,7 @@ parser = argparse.ArgumentParser("Tune and stream over web")
 parser.add_argument("station")
 parser.add_argument("--duration", default="6hr", help="How long to record for")
 parser.add_argument("--gameinfo", help="Path to JSON file with information about game")
+parser.add_argument('--softfm', action='store_true')
 parser.add_argument('--config', default='config.json', help='Config file override',
                     type=argparse.FileType('r'))
 
@@ -40,7 +44,20 @@ def killall():
         except:
             pass
 
-def tune(station):
+gains = {
+    "96.7": "22.9",
+    "100.5": "22.9",
+    "101.5": "7.7"
+}
+
+squelches = {
+    "96.7": "10"
+}
+
+# "96.7": "highpass=f=200,lowpass=f=3000"
+filters = {}
+
+def tune(station, capture_command):
     """
     Tune into the given station, and write out an m3u8 file
 
@@ -56,35 +73,34 @@ def tune(station):
 
     station_hz = int(station * 1000000.0)
     station_readable = str(station).replace('.', '_')
-
     playlist = '/var/www/html/webtune_live/{}.m3u8'.format(station_readable)
     audio_files = '/var/www/html/webtune_live/{}-segment-%03d.{}'.format(
         station_readable, ext
     )
 
-    capture_command = [
-        '/usr/local/bin/softfm',
-        '-f', str(station_hz),
-        '-R', '-'
-    ]
-
     encode_command = [
         '/usr/bin/ffmpeg',
         '-f', 's16le',
-        '-ac', '2',
+        '-ac', '1',
         '-ar', '48000',
         '-i', '-',
         '-c:a', fmt,
-        '-b:a', '64k',
+        '-b:a', '48k',
+        "-ac", "2",
         '-map', '0:0',
         '-f', 'segment',
-        '-segment_time', '3',
+        '-segment_time', '5',
         '-segment_list', playlist,
         '-segment_format', seg,
         '-segment_list_flags', 'live',
         '-segment_wrap', '4800',
-        audio_files
     ]
+
+    if filters.get(station):
+        encode_command += ['-af', filters.get(station)]
+
+    encode_command += [audio_files]
+
     try:
         if os.path.exists(playlist):
             os.remove(playlist)
@@ -98,9 +114,22 @@ def tune(station):
     try:
         check_call(['pkill', '-9', '-f', 'softfm'])
     except:
-        traceback.print_exc()
+        pass
 
-    pcap = Popen(capture_command, stdout=PIPE)
+    try:
+        check_call(['pkill', '-9', '-f', 'rtl_fm'])
+    except:
+        pass
+
+    print("Capture Command: '{}'".format(" ".join(capture_command)))
+    print("Encode Command: '{}'".format(" ".join(encode_command)))
+
+    try:
+        pcap = Popen(capture_command, stdout=PIPE)
+    except:
+        print("Error running capture command")
+        traceback.print_exc()
+        raise
     penc = Popen(encode_command, stdin=pcap.stdout)
     return pcap, penc
 
@@ -123,20 +152,26 @@ def render_game_info(data):
 
     param:data - input JSON
     """
-    date_obj = iso8601.parse_date(data.get('scheduled'))
+    date_obj = iso8601.parse_date(data.get('scheduled_cst'))
     gamedate = date_obj.strftime("%A, %B %d %Y")
     gametime = date_obj.strftime("%I:%M %p").lstrip('0')
     date = "{date} {time}".format(date=gamedate, time=gametime)
     homef = data.get('home')
     awayf = data.get('away')
+    odds = data.get('odds')
     matchup = "{away} @ {home}".format(
         away=known_abbrev.get(awayf, awayf),
         home=known_abbrev.get(homef, homef)
     )
     gametemplate = env.get_template('game.html.jinja')
-    return gametemplate.render(
+
+    rendered = gametemplate.render(
         **vars()
     )
+
+    print(rendered)
+
+    return rendered
 
 def demote(user_uid, user_gid):
     """
@@ -226,7 +261,7 @@ if __name__ == '__main__':
 
     address_config = json.load(args.config)
     if not address_config.get('local_address') or not address_config.get('remote_address'):
-        print("Must define local_address and remote_address in --config file")
+        log.info("Must define local_address and remote_address in --config file")
         parser.print_usage()
         sys.exit(1)
 
@@ -241,20 +276,46 @@ if __name__ == '__main__':
                 gameinfo=gameinfo,
                 station_readable=str(station).replace('.', '_'),
                 jsfile=jsfile,
-                server_host=host
+                server_host=host,
+                local=('local' in output)
             ))
             outfp.flush()
     check_call(['make', 'deploy'])
-    pcapture, pencode = tune(station)
+
+    use_airspy = not args.softfm
+    station_hz = int(station * 1000000.0)
+    if use_airspy:
+        capture_command = [
+            'pysched/bin/airspy-fmradion',
+            '-m', 'fm',
+            '-t', 'rtlsdr',
+            '-E8',
+            "-M",
+            '-c', 'freq={},gain={}'.format(
+                station_hz,
+                gains.get(str(station), "auto")
+            ),
+            '-R', '-'
+        ]
+    else:
+        capture_command = [
+            'pysched/bin/softfm',
+            '-f', str(station_hz),
+            '-g', gains.get(str(station), "auto"),
+            '-R', '-'
+        ]
+
+    pcapture, pencode = tune(station, capture_command)
+
     try:
         start = datetime.datetime.now()
         while datetime.datetime.now() < start + stop:
             time.sleep(1)
             if pcapture.poll() or pencode.poll():
                 raise Exception("Encode process stopped")
-        print "\nRecorded from {} to {}".format(
+        log.info("\nRecorded from {} to {}".format(
             start, datetime.datetime.now()
-        )
+        ))
     except:
         pass
     finally:

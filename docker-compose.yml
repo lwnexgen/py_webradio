@@ -1,0 +1,42 @@
+version: "3.3"
+services:
+  sched:
+    build: .
+    image: pywebradio:latest
+    volumes:
+      - ./var-run/atd.pid:/var/run/atd.pid:rw
+      - at_spool:/var/spool/at:rw
+      - data:/tmp/pysched/data:rw
+    environment:
+      - PYTHONUNBUFFERED=1
+      - HOME=/tmp/pysched
+    entrypoint: /tmp/pysched/entrypoint.py
+  tuner:
+    build: .
+    image: pywebradio:airspy
+    privileged: true
+    volumes:
+      - ./var-run:/var/run:rw
+      - at_spool:/var/spool/at:rw
+      - webdata:/var/www/html:rw
+      - data:/tmp/pysched/data:rw
+    depends_on:
+      - server
+      - sched
+    env_file:
+      - tuner-env.env
+    entrypoint: /tmp/entrypoint-docker.sh
+  server:
+    build: nginx/
+    image: nginx-local:latest
+    volumes:
+      - webdata:/usr/share/nginx/html:ro
+      - ./certs:/etc/letsencrypt:rw
+    ports:
+      - "192.168.0.197:60918:80"
+      - "192.168.0.197:443:443"
+    restart: always
+volumes:
+  webdata:
+  data:
+  at_spool:
