@@ -35,7 +35,7 @@ RUN ldconfig
 # Build SoftFM
 RUN mkdir -p /tmp
 WORKDIR /tmp
-COPY SoftFM /tmp/SoftFM
+RUN git clone https://github.com/jorisvr/SoftFM.git /tmp/SoftFM
 RUN rm -rf /tmp/SoftFM/build
 RUN mkdir /tmp/SoftFM/build
 WORKDIR /tmp/SoftFM/build
@@ -107,10 +107,10 @@ RUN virtualenv -p python2 pysched
 RUN sh root-setup.sh
 COPY --from=softfm /tmp/SoftFM/build/softfm pysched/bin/softfm
 COPY --from=softfm /tmp/airspy-fmradion/build/airspy-fmradion pysched/bin/airspy-fmradion
-COPY js js
-COPY css css
+RUN mkdir -p js
+RUN mkdir -p css
+RUN mkdir -p data
 COPY sports sports
-COPY data data
 COPY templates templates
 COPY Makefile Makefile
 

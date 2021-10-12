@@ -31,7 +31,7 @@ COPY tuner-conf.d /etc/nginx/conf.d
 # Entrypoint setup
 COPY nginx-entrypoint.sh /tmp/entrypoint-nginx.sh
 
-RUN nginx -t
+RUN nginx -t ||:
 
 # Entrypoint
 ENTRYPOINT /tmp/entrypoint-nginx.sh

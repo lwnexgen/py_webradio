@@ -1,34 +1,27 @@
+pysched:
+	virtualenv -p python3 pysched
+	pysched/bin/pip install -r requirements.txt
+
 deploy:
 	mkdir -p /var/www/html/webtune_live
 	rm -rf /var/www/html/webtune_live/{js,css,manifest*,tuner.html}
-	cp -r js css tuner.html tuner_local.html /var/www/html/webtune_live/
+	cp -r js css tuner.html /var/www/html/webtune_live/
 	cp favicon.ico /var/www/html/
 
-disk:
+disk: pysched
 	sudo modprobe -r dvb_usb_rtl28xxu ||:
 	rm -f tuner-env.env
-	rm -f atd.pid
-	touch atd.pid
-	sudo rm -rf at-spool
-	sudo rm -rf at-output
-	mkdir -p at-output
-	mkdir -p at-spool/spool
-	touch at-spool/.SEQ
-	sudo rm -rf data
-	mkdir -p data/scripts
-
-build: disk
-	docker build -t ywebradio:latest ./
-	touch btest
 
 btest: disk
 	cp default-env tuner-env.env
+	cat domain-info >> tuner-env.env
 	docker-compose down ||:
 	docker-compose up --build --detach
 	docker-compose logs -f tuner
 
 blive: disk
 	cp live-env tuner-env.env
+	cat domain-info >> tuner-env.env
 	docker-compose down ||:
 	docker-compose up --build --detach
 	docker-compose logs -f tuner

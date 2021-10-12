@@ -1,9 +1,13 @@
 #!/bin/sh
 # initialize certbot
-DOMAIN="***REMOVED***"
+env
+
 CERTDIR="/etc/letsencrypt/live/$DOMAIN"
+
+sed -e "s;DOMAIN_PLACEHOLDER;$DOMAIN;g" /etc/nginx/conf.d/default.conf -i
+
 if [ ! -d "$CERTDIR" ] ; then
-    certbot -v --nginx -m lwnexgen@gmail.com --non-interactive --agree-tos -d "$DOMAIN"
+    certbot -v --nginx -m "$EMAIL" --non-interactive --agree-tos -d "$DOMAIN"
 else
     echo "$CERTDIR already exists, need to work on renewal-checking"
     certbot -v --non-interactive renew
