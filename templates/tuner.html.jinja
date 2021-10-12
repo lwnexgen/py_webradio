@@ -15,6 +15,9 @@
 </head>
 <body>
   <div id="playback">
+    {% if local %}
+    <div id="player_video"></div>
+    {% endif %}
     <div id="player"></div>
     <div id="controls" class="btn-group btn-group-lg"></div>
     <div id="controlinfo" class="btn-group btn-group-lg">
