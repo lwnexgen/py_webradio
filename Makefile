@@ -1,5 +1,5 @@
 pysched:
-	virtualenv -p python3 pysched
+	virtualenv -p python2 pysched
 	pysched/bin/pip install -r requirements.txt
 
 deploy:
