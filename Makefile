@@ -9,7 +9,7 @@ deploy:
 	cp favicon.ico /var/www/html/
 
 disk: pysched
-	sudo modprobe -r dvb_usb_rtl28xxu ||:
+	lsmod | grep -q dvb_usb_rt128xxu && sudo modprobe -r dvb_usb_rtl28xxu ||:
 	rm -f tuner-env.env
 
 btest: disk
@@ -28,12 +28,14 @@ blive: disk
 
 live: disk
 	cp live-env tuner-env.env
+	cat domain-info >> tuner-env.env
 	docker-compose down --timeout=1 ||:
 	docker-compose up --detach
 	docker-compose logs -f tuner
 
 test: disk
 	cp default-env tuner-env.env
+	cat domain-info >> tuner-env.env
 	docker-compose down ||:
 	docker-compose up --detach
 	docker-compose logs -f tuner
