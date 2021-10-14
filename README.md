@@ -4,7 +4,9 @@ This project enables a scrubbable FM broadcast feed that is streamable to anythi
 
 1. Hardware RTL-SDR device
 1. Docker instance
-1. `server/certs` should have `/etc/letsencrypt` data
+1. domain-info should contain the following info specific to lets encrypt:
+   1. `DOMAIN=desired letsencrypt hostname`
+   1. `EMAIL=letsencrypt email`
 
 # Configuration
 
@@ -18,3 +20,5 @@ This project enables a scrubbable FM broadcast feed that is streamable to anythi
 
 1. `make btest` - this will build the docker images, and use docker-compose to deploy them
 1. `make test` - just run run the docker-compose deployment without building the latest images
+
+Note: a letsencrypt.org cert will be requested and provisioned for you
