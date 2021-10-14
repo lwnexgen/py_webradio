@@ -1,45 +1,35 @@
-pysched:
-	virtualenv -p python2 pysched
-	pysched/bin/pip install -r requirements.txt
-
-deploy:
-	mkdir -p /var/www/html/webtune_live
-	rm -rf /var/www/html/webtune_live/{js,css,manifest*,tuner.html}
-	cp -r js css tuner.html /var/www/html/webtune_live/
-	cp favicon.ico /var/www/html/
-
-disk: pysched
+# docker-compose startup stuff
+disk:
 	lsmod | grep -q dvb_usb_rt128xxu && sudo modprobe -r dvb_usb_rtl28xxu ||:
 	rm -f tuner-env.env
+	cp domain-info tuner/tuner-env.env
+	python render-compose.py > docker-compose.yml
 
+# build images fresh and start in "schedule" mode
 btest: disk
-	cp default-env tuner-env.env
-	cat domain-info >> tuner-env.env
+	cat sched-env >> tuner/tuner-env.env
 	docker-compose down ||:
 	docker-compose up --build --detach
 	docker-compose logs -f tuner
 
+# start in "schedule" mode
+test: disk
+	cat sched-env >> tuner/tuner-env.env
+	docker-compose down ||:
+	docker-compose up --detach
+	docker-compose logs -f tuner
+
+
+# build images fresh and start in "live" mode
 blive: disk
-	cp live-env tuner-env.env
-	cat domain-info >> tuner-env.env
+	cat live-env >> tuner/tuner-env.env
 	docker-compose down ||:
 	docker-compose up --build --detach
 	docker-compose logs -f tuner
 
+# start in "live" mode
 live: disk
-	cp live-env tuner-env.env
-	cat domain-info >> tuner-env.env
+	cat live-env >> tuner/tuner-env.env
 	docker-compose down --timeout=1 ||:
 	docker-compose up --detach
 	docker-compose logs -f tuner
-
-test: disk
-	cp default-env tuner-env.env
-	cat domain-info >> tuner-env.env
-	docker-compose down ||:
-	docker-compose up --detach
-	docker-compose logs -f tuner
-
-slive:
-	sed -e 's;entrypoint: /tmp/pysched/entrypoint.py;entrypoint: /bin/bash;g' -e 's;entrypoint: /tmp/entrypoint-docker.sh;entrypoint: /bin/bash;g' docker-compose.yml > docker-compose-new.yml
-	docker-compose -f docker-compose-new.yml run sched

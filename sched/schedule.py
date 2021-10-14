@@ -4,15 +4,19 @@ Scrape vegasinsider.com for gametime information
 """
 from bs4 import BeautifulSoup as Soup
 
+# requests for scraping odds sites
+import requests
+
+# arrow for datetime / timezone conversions
+import arrow
+
 from pipes import quote
 
 import datetime
 import glob
 import json
 import os
-import requests
 import subprocess
-import arrow
 import sys
 import hashlib
 import time

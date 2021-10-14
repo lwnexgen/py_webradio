@@ -1,0 +1,2 @@
+PYTHONUNBUFFERED=1
+HOME=/tmp/pysched
