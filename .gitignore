@@ -1,5 +1,5 @@
 pysched
-certs
+server/certs
 tuner/config.json
 tuner.html tuner_local.html
 js/custom.js
