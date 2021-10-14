@@ -4,6 +4,7 @@ This project enables a scrubbable FM broadcast feed that is streamable to anythi
 
 1. Hardware RTL-SDR device
 1. Docker instance
+1. `server/certs` should have `/etc/letsencrypt` data
 
 # Configuration
 
