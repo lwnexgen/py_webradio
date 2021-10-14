@@ -1,19 +1,17 @@
 version: "3.3"
 services:
   sched:
-    build: .
-    image: pywebradio:latest
+    build: sched/
+    image: pywebsched:latest
     volumes:
       - ./var-run/atd.pid:/var/run/atd.pid:rw
       - at_spool:/var/spool/at:rw
       - data:/tmp/pysched/data:rw
-    environment:
-      - PYTHONUNBUFFERED=1
-      - HOME=/tmp/pysched
-    entrypoint: /tmp/pysched/entrypoint.py
+    env_file:
+      - sched/sched-env.env
   tuner:
-    build: .
-    image: pywebradio:airspy
+    build: tuner/
+    image: pywebtuner:latest
     privileged: true
     volumes:
       - ./var-run:/var/run:rw
@@ -24,19 +22,18 @@ services:
       - server
       - sched
     env_file:
-      - tuner-env.env
-    entrypoint: /tmp/entrypoint-docker.sh
+      - tuner/tuner-env.env
   server:
-    build: nginx/
-    image: nginx-local:latest
+    build: server/
+    image: pywebserver:latest
     volumes:
       - webdata:/usr/share/nginx/html:ro
-      - ./certs:/etc/letsencrypt:rw
+      - ./server/certs:/etc/letsencrypt:rw
     env_file:
-      - tuner-env.env
+      - tuner/tuner-env.env
     ports:
-      - "192.168.0.197:60918:80"
-      - "192.168.0.197:443:443"
+      - "DEFINEIP:60918:80"
+      - "DEFINEIP:443:443"
 volumes:
   webdata:
   data:
