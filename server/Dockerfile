@@ -35,3 +35,4 @@ RUN nginx -t ||:
 
 # Entrypoint
 ENTRYPOINT /tmp/entrypoint-nginx.sh
+CMD ""

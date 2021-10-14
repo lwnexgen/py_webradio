@@ -1,9 +1,10 @@
 pysched
 certs
-config.json
+tuner/config.json
 tuner.html tuner_local.html
 js/custom.js
 js/custom_local.js
 domain-info
 tuner-env.env
 live-env
+docker-compose.yml

@@ -12,8 +12,8 @@ RUN dnf -y install soxr soxr-devel
 RUN dnf -y install portaudio portaudio-devel
 
 # Build RTL-SDR from source
-RUN git clone git://git.osmocom.org/rtl-sdr.git
-WORKDIR rtl-sdr
+RUN git clone git://git.osmocom.org/rtl-sdr.git /tmp/rtl-sdr
+WORKDIR /tmp/rtl-sdr
 RUN git checkout v0.5.4
 RUN mkdir build
 WORKDIR build
@@ -62,64 +62,50 @@ RUN make -j4
 
 FROM fedora:latest
 
-RUN dnf -y install python3 python3-virtualenv cmake numpy gcc
-RUN dnf -y install gcc-c++ gcc
-RUN dnf -y install alsa-lib alsa-lib-devel
-RUN dnf -y install libusb libusb-devel
-RUN dnf -y install make git
-RUN dnf -y install at
-RUN dnf -y install python2
+# bootstrap dependencies
+RUN dnf -y install make
+RUN dnf -y install python-virtualenv python2
+
+# dependencies of airspy and ffmpeg
+RUN dnf -y install portaudio
+RUN dnf -y install volk
+RUN dnf -y install soxr
 RUN dnf -y install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-34.noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-34.noarch.rpm
 RUN dnf -y install ffmpeg
-RUN dnf -y install strace
-RUN dnf -y install airspyone_host airspyone_host-devel
-RUN dnf -y install soxr soxr-devel
-RUN dnf -y install portaudio portaudio-devel
-RUN dnf -y install portaudio portaudio-devel
-RUN dnf -y install volk volk-devel
+RUN dnf -y install /usr/sbin/atd
+RUN dnf -y install /usr/bin/find
 
-# Build libfaketime from source
-RUN git clone https://github.com/wolfcw/libfaketime.git
-WORKDIR libfaketime
-RUN git checkout 3c0b101a84de6eb9b05f8181c3f40731575e9ebc
-RUN make
-RUN make install
-WORKDIR ..
-
-# Build RTL-SDR from source
-RUN git clone git://git.osmocom.org/rtl-sdr.git
-WORKDIR rtl-sdr
-RUN git checkout v0.5.4
-RUN mkdir build
-WORKDIR build
-RUN cmake ../
-RUN make uninstall ||:
-RUN make
-RUN make install
-RUN ldconfig
-
+# Set default workdir
 RUN mkdir -p /tmp/pysched
 WORKDIR /tmp/pysched
 
-COPY config.json root-setup.sh *.py *.html *.ico units.txt requirements.txt ./
+# initialize virtualenv
+COPY Makefile.tuner Makefile
+COPY requirements.txt ./
+RUN make pysched
 
-RUN virtualenv -p python2 pysched
-RUN sh root-setup.sh
+# Install softfm / airspy / RTL-SDR from first stage build
 COPY --from=softfm /tmp/SoftFM/build/softfm pysched/bin/softfm
 COPY --from=softfm /tmp/airspy-fmradion/build/airspy-fmradion pysched/bin/airspy-fmradion
+COPY --from=softfm /usr/local/lib/pkgconfig/librtlsdr.pc /usr/local/lib/pkgconfig/
+COPY --from=softfm /usr/local/include/rtl-sdr*.h /usr/local/include/
+COPY --from=softfm /usr/local/lib/librtlsdr.* /usr/local/lib/
+COPY --from=softfm /usr/local/bin/rtl_* /usr/local/bin/
+
+# tune.py and dependencies
+COPY units.txt config.json tune.py favicon.ico ./
+COPY templates templates
+
+# make empty dirs
 RUN mkdir -p js
 RUN mkdir -p css
 RUN mkdir -p data
-COPY sports sports
-COPY templates templates
-COPY Makefile Makefile
 
-# RUN useradd sam
-# RUN chown -R sam:sam /tmp/pysched
-# USER sam
+# Setup initial directory structure in Dockerfile
+RUN echo {} > dummy.json
+RUN ./tune.py 101.5 --init --gameinfo=dummy.json
 
 COPY entrypoint-tuner.sh /tmp/entrypoint-docker.sh
 
-COPY entrypoint.py /tmp/pysched/entrypoint.py
-ENTRYPOINT /tmp/pysched/entrypoint.py
+ENTRYPOINT /tmp/entrypoint-docker.sh
 CMD ""

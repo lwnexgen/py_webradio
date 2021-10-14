@@ -26,6 +26,7 @@ env = Environment(
 
 parser = argparse.ArgumentParser("Tune and stream over web")
 parser.add_argument("station")
+parser.add_argument('--init', help='Initialize files from templates, then exit', action='store_true')
 parser.add_argument("--duration", default="6hr", help="How long to record for")
 parser.add_argument("--gameinfo", help="Path to JSON file with information about game")
 parser.add_argument('--softfm', action='store_true')
@@ -282,6 +283,9 @@ if __name__ == '__main__':
             outfp.flush()
     check_call(['make', 'deploy'])
 
+    if args.init:
+        sys.exit(0)
+    
     use_airspy = not args.softfm
     station_hz = int(station * 1000000.0)
     if use_airspy:
