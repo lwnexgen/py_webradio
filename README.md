@@ -1,5 +1,9 @@
 This project enables a scrubbable FM broadcast feed that is streamable to anything that can playback an m3u8 file.
 
+![image](https://user-images.githubusercontent.com/2223592/137526576-9da596b6-eb17-4909-a152-90afb53b8381.png)
+
+It creates an m3u8/mp3 stream out of data from an [RTL-SDR](https://www.rtl-sdr.com/) device using ffmpeg, and then serves those files using a containerized nginx instance using TLS / SSL from Let's Encrypt.
+
 # Requirements
 
 1. Hardware RTL-SDR device
