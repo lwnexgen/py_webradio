@@ -4,7 +4,7 @@ services:
     build: sched/
     image: pywebsched:latest
     volumes:
-      - ./var-run/atd.pid:/var/run/atd.pid:rw
+      - var_run:/var/run:rw
       - at_spool:/var/spool/at:rw
       - data:/tmp/pysched/data:rw
     env_file:
@@ -14,7 +14,7 @@ services:
     image: pywebtuner:latest
     privileged: true
     volumes:
-      - ./var-run:/var/run:rw
+      - var_run:/var/run:rw
       - at_spool:/var/spool/at:rw
       - webdata:/var/www/html:rw
       - data:/tmp/pysched/data:rw
@@ -28,13 +28,25 @@ services:
     image: pywebserver:latest
     volumes:
       - webdata:/usr/share/nginx/html:ro
-      - ./server/certs:/etc/letsencrypt:rw
+      - certs:/etc/letsencrypt:rw
+    env_file:
+      - tuner/tuner-env.env
+    ports:
+      - "DEFINEIP:443:443"
+    depends_on:
+      - letsencrypt
+  letsencrypt:
+    build: letsencrypt/
+    image: letsencrypt:latest
+    volumes:
+      - certs:/etc/letsencrypt:rw
     env_file:
       - tuner/tuner-env.env
     ports:
       - "DEFINEIP:60918:80"
-      - "DEFINEIP:443:443"
 volumes:
   webdata:
   data:
   at_spool:
+  certs:
+  var_run:
