@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# This silly file just replaces sensitive values in docker-compose.yml
+# This silly file just replaces sensitive values in docker-compose.yml - should really be jinja
 import subprocess
 import json
 import urlparse
