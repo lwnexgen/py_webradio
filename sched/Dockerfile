@@ -16,4 +16,3 @@ COPY Makefile.sched Makefile
 RUN make pysched
 
 ENTRYPOINT /tmp/entrypoint.py
-CMD ""
