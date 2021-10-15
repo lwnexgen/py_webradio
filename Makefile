@@ -1,3 +1,10 @@
+local_pysched:
+	virtualenv -p python3 pysched
+	pysched/bin/pip install -U pip
+	pysched/bin/pip install -r requirements.txt
+	curl -L https://github.com/kubernetes/kompose/releases/download/v1.24.0/kompose-linux-amd64 -o pysched/bin/kompose
+	chmod +x pysched/bin/kompose
+
 # docker-compose startup stuff
 disk:
 	lsmod | grep -q dvb_usb_rt128xxu && sudo modprobe -r dvb_usb_rtl28xxu ||:

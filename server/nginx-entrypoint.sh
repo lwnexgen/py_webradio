@@ -1,18 +1,12 @@
 #!/bin/sh
-# initialize certbot
-env
+# Wait for letsencrypt container to be up
+wait-for-it letsencrypt:80 || exit 1
 
-CERTDIR="/etc/letsencrypt/live/$DOMAIN"
-
+# initialize certbot - TODO ; should be templatized using Jinja
 sed -e "s;DOMAIN_PLACEHOLDER;$DOMAIN;g" /etc/nginx/conf.d/default.conf -i
 
-if [ ! -d "$CERTDIR" ] ; then
-    certbot -v --nginx -m "$EMAIL" --non-interactive --agree-tos -d "$DOMAIN"
-else
-    echo "$CERTDIR already exists, need to work on renewal-checking"
-    certbot -v --non-interactive renew
-    certbot -v --non-interactive install -d "$DOMAIN" --cert-name "$DOMAIN" --nginx
-fi
+# Install domain cert into container
+certbot -v --non-interactive install -d "$DOMAIN" --cert-name "$DOMAIN" --nginx
 
 /usr/sbin/nginx -s stop;
 sleep 10;
