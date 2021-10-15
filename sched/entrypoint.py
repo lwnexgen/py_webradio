@@ -19,6 +19,12 @@ def cmd():
 if __name__ == '__main__':
     args = cmd()
     srand = random.SystemRandom()
+
+    for fn in glob.glob('/var/spool/at/*'):
+        if os.path.split(fn)[-1] == 'spool':
+            continue
+        os.remove(fn)
+
     for sched in glob.glob("/var/spool/at/*"):
         print(sched)
     

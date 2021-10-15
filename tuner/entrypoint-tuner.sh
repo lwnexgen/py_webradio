@@ -3,7 +3,8 @@ if [ ! -z "$LIVE" ] ; then
     exec /bin/bash
 fi
 
-env
+rm -f /var/www/html/webtune_live/*.{mp3,m3u8}
+
 if [ ! -z "$STATION" ] ; then
     if [ ! -z "$DURATION" ] ; then
 	pysched/bin/python tune.py $STATION --duration="$DURATION"min
