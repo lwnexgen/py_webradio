@@ -33,17 +33,3 @@ fake: disk
 	docker-compose down ||:
 	docker-compose up --detach
 	docker-compose logs -f tuner
-
-# build images fresh and start in "live" mode
-blive: disk
-	cat live-env >> tuner/tuner-env.env
-	docker-compose down ||:
-	docker-compose up --build --detach
-	docker-compose logs -f tuner
-
-# start in "live" mode
-live: disk
-	cat live-env >> tuner/tuner-env.env
-	docker-compose down --timeout=1 ||:
-	docker-compose up --detach
-	docker-compose logs -f tuner
