@@ -1,12 +1,14 @@
 version: "3.3"
 services:
+  rmq:
+    image: rabbitmq:3.9-management
+    ports:
+      - DEFINEIP:60808:15672
   sched:
     build: sched/
     image: pywebsched:latest
-    volumes:
-      - var_run:/var/run:rw
-      - at_spool:/var/spool/at:rw
-      - data:/tmp/pysched/data:rw
+    depends_on:
+      - rmq
     env_file:
       - sched/sched-env.env
   tuner:
@@ -14,13 +16,10 @@ services:
     image: pywebtuner:latest
     privileged: true
     volumes:
-      - var_run:/var/run:rw
-      - at_spool:/var/spool/at:rw
       - webdata:/var/www/html:rw
-      - data:/tmp/pysched/data:rw
+      - badgers:/mnt/megapenthes/Badgers:rw
     depends_on:
-      - server
-      - sched
+      - rmq
     env_file:
       - tuner/tuner-env.env
   server:
@@ -46,7 +45,5 @@ services:
       - "DEFINEIP:60918:80"
 volumes:
   webdata:
-  data:
-  at_spool:
   certs:
-  var_run:
+  badgers:

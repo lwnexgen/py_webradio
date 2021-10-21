@@ -16,12 +16,14 @@ fi
 
 make deploy
 
+env
+
 sleep 10
 while true ; do
     printf "Starting atd at date %s\n" "$(date)"
-    sh -c "time strace -o /tmp/pysched/data/strace-tuner.log -ff /usr/sbin/atd -d -s 2>/dev/null"
     queue=$(atq)
     printf "Remaining at queue\n%s\n" "$queue"
+    sh -c "strace /usr/sbin/atd -d -s"
     find /var/spool/at -maxdepth 1 -type f | while read fn ; do
 	sched=$(grep 'scheduled_sort' "$fn" | cut -d ':' -f2-)
 	odds=$(grep 'odds' "$fn" | cut -d ':' -f2-)

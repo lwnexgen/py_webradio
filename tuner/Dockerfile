@@ -72,8 +72,10 @@ RUN dnf -y install volk
 RUN dnf -y install soxr
 RUN dnf -y install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-34.noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-34.noarch.rpm
 RUN dnf -y install ffmpeg
+RUN dnf -y install strace
 RUN dnf -y install /usr/sbin/atd
 RUN dnf -y install /usr/bin/find
+RUN dnf -y install libfaketime
 
 # Set default workdir
 RUN mkdir -p /tmp/pysched
@@ -101,11 +103,5 @@ RUN mkdir -p js
 RUN mkdir -p css
 RUN mkdir -p data
 
-# Setup initial directory structure in Dockerfile
-RUN echo {} > dummy.json
-RUN ./tune.py 101.5 --init --gameinfo=dummy.json
-
-COPY entrypoint-tuner.sh /tmp/entrypoint-docker.sh
-
-ENTRYPOINT /tmp/entrypoint-docker.sh
-CMD ""
+ENTRYPOINT /tmp/pysched/tune.py
+CMD "--rmq"
