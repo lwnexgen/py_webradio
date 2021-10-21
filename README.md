@@ -20,9 +20,12 @@ This project enables a scrubbable FM broadcast feed that is streamable to anythi
 
 1. `make btest` - this will build the docker images, and use docker-compose to deploy them
 1. `make test` - just run run the docker-compose deployment without building the latest images
-1. `make blive` - run this in live mode, tuning to the desired station for the specified duration (minutes) - configured via`live-env` file:
-   1. `STATION=101.5`
-   1. `DURATION=360`
-   1. `HOME=/tmp/pysched`
+
+## Live Mode
+
+1. To run in 'live' mode, first start the cluster via `make test`
+1. Once it's running, stop the tuner container: `docker-compose stop tuner`
+1. Once it's stopped, start it in 'now' mode: `docker-compose run --rm tuner --now`
+1. Wait 30s for the stream to become available at your domain
 
 Note: a letsencrypt.org cert will be requested and provisioned for you based on the DOMAIN and EMAIL you specify in 'domain-info' - this will be stored in the 'certs' volume and updated by the letsencrypt service on cluster startup
