@@ -305,7 +305,7 @@ def schedule_tune(config, now=False):
 
     if now:
         start_at = now_time + datetime.timedelta(seconds=10)
-        duration_seconds = 10
+        duration_seconds = 180
     else:
         start_at = iso8601.parse_date(config['scheduled'])
 
@@ -410,7 +410,12 @@ def dequeue(now=False):
         ))
 
     channel.basic_consume(queue='schedule', on_message_callback=sched_process, auto_ack=True)
-    print('[Successful] Waiting for RabbitMQ messages from sched container')
+    if now:
+        print('[Warning] Running in "now" mode')
+        print('[Successful] Waiting for RabbitMQ messages from sched container')
+    else:
+        print('[Successful] Waiting for RabbitMQ messages from sched container')
+
     channel.start_consuming()
 
 if __name__ == '__main__':

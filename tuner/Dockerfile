@@ -103,5 +103,4 @@ RUN mkdir -p js
 RUN mkdir -p css
 RUN mkdir -p data
 
-ENTRYPOINT /tmp/pysched/tune.py
-CMD "--rmq"
+ENTRYPOINT ["/tmp/pysched/tune.py"]
