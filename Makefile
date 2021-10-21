@@ -27,6 +27,13 @@ test: disk
 	docker-compose logs -f tuner
 
 
+fake: disk
+	cat sched-env >> tuner/tuner-env.env
+	cat fake-env >> tuner/tuner-env.env
+	docker-compose down ||:
+	docker-compose up --detach
+	docker-compose logs -f tuner
+
 # build images fresh and start in "live" mode
 blive: disk
 	cat live-env >> tuner/tuner-env.env

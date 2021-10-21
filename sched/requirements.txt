@@ -4,7 +4,9 @@ beautifulsoup4==4.9.3
 bs4==0.0.1
 certifi==2021.10.8
 chardet==4.0.0
+charset-normalizer==2.0.7
 idna==2.10
+pika==1.2.0
 python-dateutil==2.8.2
 requests==2.26.0
 six==1.16.0

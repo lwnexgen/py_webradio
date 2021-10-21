@@ -10,4 +10,8 @@ build:
 	touch build
 
 live: build disk
-	docker run --env-file=sched-env.env -v "$(readlink -f at-spool):/var/spool/at:rw" -v "$(readlink -f var-run)/atd.pid:/var/run/atd.pid:rw" $(TAG)
+	docker run --env-file=sched-env.env \
+		-v "$(shell readlink -f ./schedule.py):/tmp/schedule.py" \
+		-v "$(shell readlink -f at-spool):/var/spool/at:rw" \
+		-v "$(shell readlink -f var-run)/atd.pid:/var/run/atd.pid:rw" \
+		--entrypoint /bin/bash --name=livesched --rm -it $(TAG)

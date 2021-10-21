@@ -31,7 +31,8 @@ if __name__ == '__main__':
     while not args:
         schedule()
         print(subprocess.check_output(["atq"]))
-        time.sleep(srand.randint(300, 1200))
+        time.sleep(60)
+        # time.sleep(srand.randint(300, 1200))
 
     print("Executing following: {}".format(args))
     os.execv(args[0], args)

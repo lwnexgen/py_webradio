@@ -1,4 +1,4 @@
 pysched:
-	virtualenv -p python2 pysched
+	virtualenv -p python3 pysched
 	pysched/bin/pip install --upgrade pip
 	pysched/bin/pip install -r requirements.txt

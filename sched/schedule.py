@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!pysched/bin/python
 """
 Scrape vegasinsider.com for gametime information
 """
@@ -9,6 +9,9 @@ import requests
 
 # arrow for datetime / timezone conversions
 import arrow
+
+# pika for rabbitmq integration
+import pika
 
 from pipes import quote
 
@@ -122,10 +125,11 @@ def scrape_sport(sport, url):
             )
         except:
             import traceback ; traceback.print_exc()
+
         scheduled = arrow.get(est_scheduled_obj).to('UTC')
         scheduled_cst = arrow.get(est_scheduled_obj).to('America/Chicago')
         hl = hashlib.md5()
-        hl.update(home_e.text + away_e.text + scheduled.isoformat())
+        hl.update((home_e.text + away_e.text + sport).encode('utf-8'))
         matchups.append({
             "sport": sport,
             "scheduled": scheduled.isoformat(),
@@ -206,49 +210,12 @@ popd
         script.write(message)
         script.flush()
 
-def queue(config):
+def queue(config, rmq, queuename='schedule'):
     """
-    Add an event to the queued list of events
-
-    param:config - dict of event information
-
-    1) Get the existing queue of events
-    2) Verify that this event isn't already queued
-    3) Queue this event via at(1)
+    Add a queue object to rabbitmq
     """
-    print(json.dumps(config, indent=2))
-    last = 0
-    last_d = "data/scripts"
-    # Existing queue
-    queued = _ex_q(last_d)
-    # Super ugly hashing implementation to ensure that a rescheduled game isn't double-queued
-    if queued:
-        for x in queued:
-            with open(x, 'r') as qfp:
-                contents = qfp.read()
-                cfg_check = str(config.get('id'))
-                print("Checking for {} in {}".format(cfg_check, qfp.name))
-                if cfg_check in contents:
-                    print("Already have {} @ {} queued".format(config['away'], config['home']))
-                    return
-        last = int(os.path.basename(queued[-1]).split('_')[0])
-    script = (os.path.join(last_d, "{}_{}_{}".format(
-        str(last + 1).zfill(2),
-        config['away'].replace(' ', "-"),
-        config['home'].replace(' ', "-")))
-    )
-    _write_cat_cfg(script, config)
-    pwd = os.getcwd()
-    try:
-        os.chdir(last_d)
-        at_command = ['at', '-f', os.path.basename(script), config['scheduled_at']]
-        runcommand(at_command)
-    except:
-        import traceback
-        traceback.print_exc()
-
-    finally:
-        os.chdir(pwd)
+    rmq.basic_publish(exchange='', routing_key=queuename, body=json.dumps(config))
+    print("Queued: {} [{}]".format(config.get('odds'), config.get('id')))
 
 def schedule():
     """
@@ -259,10 +226,24 @@ def schedule():
     ))
     matchups = scrape()
     upcoming = []
+    rmq = None
+    queuename = 'schedule'
     for matchup in sorted(matchups, key=lambda x: x['scheduled']):
         for favorite in favorites[matchup["sport"]]:
+            if rmq is None:
+                for x in range(5):
+                    print("RabbitMQ connection attempt {}".format(x))
+                    try:
+                        rmq = pika.BlockingConnection(pika.ConnectionParameters('rmq'))
+                        channel = rmq.channel()
+                        channel.queue_declare(queue=queuename)
+                        break
+                    except Exception as exc:
+                        time.sleep(5)
             if favorite in str(matchup):
-                queue(matchup)
+                queue(matchup, channel)
+    if rmq:
+        rmq.close()
 
 if __name__ == "__main__":
     schedule()
