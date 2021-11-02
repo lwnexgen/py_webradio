@@ -18,6 +18,7 @@ services:
     volumes:
       - webdata:/var/www/html:rw
       - badgers:/mnt/megapenthes/Badgers:rw
+      - tuner/tune.py:/tmp/pysched/tune.py:ro
     depends_on:
       - rmq
     env_file:
