@@ -24,6 +24,7 @@ from jinja2 import Environment, FileSystemLoader
 import pika
 import pint
 import iso8601
+import arrow
 
 log = logging.getLogger()
 
@@ -314,7 +315,7 @@ def schedule_tune(config, now=False):
     time.sleep(sleep_duration.total_seconds())
     render_html(config)
 
-    print("Starting recording of {}".format(config['odds']))
+    print("Starting recording of {} for {}s".format(config['odds'], duration_seconds))
     pcapture, pencode = tune(station, capture_command)
     try:
         start = datetime.datetime.now()
@@ -421,6 +422,18 @@ def dequeue(now=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Tune and stream over web")
     parser.add_argument('--now', action='store_true', help='Start now instead of waiting until time for event')
+    parser.add_argument('--sport', choices=list(tuner.keys()))
     args = parser.parse_args()
 
-    dequeue(now=args.now)
+    if args.sport:
+        schedule_tune(
+            {
+                "sport": args.sport,
+                "home": "",
+                "away": "",
+                "scheduled": (arrow.utcnow().naive + datetime.timedelta(seconds=5)).isoformat(),
+                "scheduled_cst": (arrow.utcnow().to('US/Central').naive + datetime.timedelta(seconds=5)).isoformat(),
+                "odds": tuner.get(args.sport, {}).get('station')
+            })
+    else:
+        dequeue(now=args.now)

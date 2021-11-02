@@ -26,6 +26,17 @@ test: disk
 	docker-compose up --detach
 	docker-compose logs -f tuner
 
+ncaaf:
+	docker-compose stop tuner ||:
+	docker-compose run tuner --sport ncaaf
+
+nfl:
+	docker-compose stop tuner ||:
+	docker-compose run tuner --sport nfl
+
+mlb:
+	docker-compose stop tuner ||:
+	docker-compose run tuner --sport mlb
 
 fake: disk
 	cat sched-env >> tuner/tuner-env.env
