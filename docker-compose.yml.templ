@@ -7,18 +7,31 @@ services:
   sched:
     build: sched/
     image: pywebsched:latest
+    dns:
+      - 8.8.8.8
     depends_on:
       - rmq
     env_file:
       - sched/sched-env.env
+    volumes:
+      - ./sched/schedule.py:/tmp/schedule.py
+    logging:
+      options:
+        max-size: "200k"
+        max-file: "10"
+    restart: always
   tuner:
     build: tuner/
     image: pywebtuner:latest
     privileged: true
     volumes:
       - webdata:/var/www/html:rw
-      - badgers:/mnt/megapenthes/Badgers:rw
-      - tuner/tune.py:/tmp/pysched/tune.py:ro
+      - /mnt/megapenthes/Badgers:/mnt/megapenthes/Badgers:rw
+      - ./tuner/tune.py:/tmp/pysched/tune.py:ro
+    logging:
+      options:
+        max-size: "200k"
+        max-file: "10"
     depends_on:
       - rmq
     env_file:
@@ -29,10 +42,17 @@ services:
     volumes:
       - webdata:/usr/share/nginx/html:ro
       - certs:/etc/letsencrypt:rw
+      - ./server/tuner-conf.d/.htpasswd:/etc/nginx/.htpasswd:ro
+      - ./logs/:/var/log/nginx:rw
+      - ./server/nginx-entrypoint.sh:/tmp/entrypoint-nginx.sh:ro
     env_file:
       - tuner/tuner-env.env
     ports:
       - "DEFINEIP:443:443"
+    logging:
+      options:
+        max-size: "200k"
+        max-file: "10"
     depends_on:
       - letsencrypt
   letsencrypt:
@@ -40,11 +60,12 @@ services:
     image: letsencrypt:latest
     volumes:
       - certs:/etc/letsencrypt:rw
+      - webdata:/var/www/html:rw
+      - ./le-logs:/var/log/letsencrypt:rw
     env_file:
       - tuner/tuner-env.env
     ports:
-      - "DEFINEIP:60918:80"
+      - "DEFINEIP:80:80"
 volumes:
   webdata:
   certs:
-  badgers:

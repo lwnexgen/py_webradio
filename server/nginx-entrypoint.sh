@@ -1,6 +1,6 @@
 #!/bin/sh
 wait_and_retry() {
-    wait-for-it letsencrypt:80 || exit 1
+    wait-for-it -t 300 letsencrypt:80 || exit 1
     certbot -v --non-interactive install -d "$DOMAIN" --cert-name "$DOMAIN" --nginx || exit 1
 }
 

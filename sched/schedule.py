@@ -58,18 +58,24 @@ tuner = {
     }
 }
 
-def parse_odds(odds, sport):
-    if sport == 'mlb':
-        away, home = [x.strip() for x in odds.prettify().replace('</a>', '').split('<br/>')[-2:]]
-    else:
-        _home = odds.prettify().replace('</a>', '').split('<br/>')[-1].replace('½', '.5').split()[0]
-        home = float(_home)
-        away = home * -1
-        if home < 0:
-            away = "+" + str(away)
-        else:
-            home = "+" + str(home)
-    return (home, away)
+def is_float(inp):
+    try:
+        float(inp)
+        return True
+    except:
+        pass
+    return False
+
+def parse_odds(odds_string):
+    home_odds_r = float(odds_string.split()[-1])
+    away_odds_r = home_odds_r * -1
+    home_odds = str(home_odds_r)
+    away_odds = str(away_odds_r)
+    if home_odds_r > 0:
+        home_odds = "+" + str(home_odds_r)
+    if away_odds_r > 0:
+        away_odds = "+" + str(away_odds_r)        
+    return home_odds, away_odds
 
 def scrape_matchup(url, rel_url, sport):
     matchup_url = url + '../../..' + rel_url
@@ -83,8 +89,11 @@ def scrape_matchup(url, rel_url, sport):
     try:
         soup = Soup(src, 'html.parser')
         datestr = ' '.join(soup.findAll('span', {'class': 'text-white'})[0].text.replace(',', '').split())
-        teams = soup.findAll('div', {'class': 'd-flex flex-column flex-lg-row event-teams-wrapper mt-2 mt-lg-4'})[0].text.strip().split()
-        home, away = teams[-1], teams[0]
+        teams = ' '.join(soup.findAll('div', {'class': 'd-flex flex-column flex-lg-row event-teams-wrapper mt-2 mt-lg-4'})[0].text.strip().split()).replace('/', '')
+        sp = [x.strip() for x in teams.split('@', 1)]
+        away = sp[0]
+        _, _, _, home, _ = sp[1].split()
+        home_odds, away_odds = parse_odds(sp[1])
         scheduled_est = arrow.get(datestr.replace(' ET', ' US/Eastern'), 'ddd MMM D YYYY h:mm A ZZZ')
     except Exception as exc:
         print("Unable to parse {}\n{}".format(matchup_url, exc))
@@ -94,10 +103,9 @@ def scrape_matchup(url, rel_url, sport):
     hl.update((home + away + sport).encode('utf-8'))
     scheduled = scheduled_est.to('UTC')
     scheduled_cst = scheduled_est.to('US/Central')
-    # TODO
-    home_odds, away_odds = "?", "?"
     matchup = {
         "sport": sport,
+        "raw_date": datestr,
         "scheduled": scheduled.isoformat(),
         "scheduled_cst": scheduled_cst.isoformat(),
         "scheduled_at": scheduled.shift(minutes=-10).strftime("%I:%M %p %Y-%m-%d"),
@@ -112,7 +120,6 @@ def scrape_matchup(url, rel_url, sport):
         ),
         "id": hl.hexdigest()
     }
-    import pdb ; pdb.set_trace()
     return matchup
 
 def scrape_sport_favorite(sport, url, favorite):
@@ -128,7 +135,7 @@ def scrape_sport_favorite(sport, url, favorite):
     for matchup in [x for x in soup.findAll('div', {'class': 'flex-equalize pr-2'})]:
         matchup_link = matchup.findAll('a', {'class': 'matchup-link'})[0].get('href')
         scraped = scrape_matchup(url, matchup_link, sport)
-        if scraped:
+        if scraped is not None:
             matchups.append(scraped)
     return matchups
 
@@ -156,16 +163,6 @@ def scrape():
     for sport, url in SOURCES.items():
         matchups += scrape_sport(sport, url, favorites.get(sport, []))
     return matchups
-
-def parse_daily(date):
-    """
-    Normalize date to (to play along with scraper site)
-
-    MM-DD
-    """
-    return '{}-{}'.format(
-        str(date.month).lstrip('0').zfill(2),
-        str(date.day).lstrip('0').zfill(2))
 
 def runcommand(command, simulate=False, silent=False):
     """

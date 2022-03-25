@@ -15,7 +15,8 @@ import traceback
 
 from multiprocessing import Process
 from datetime import timezone
-from subprocess import Popen, PIPE, CalledProcessError, check_call, check_output, DEVNULL
+from subprocess import run, Popen, PIPE, CalledProcessError, check_call, check_output, DEVNULL
+from io import StringIO
 
 # jinja2 for rendering HTML stuff
 from jinja2 import Environment, FileSystemLoader
@@ -67,6 +68,14 @@ tuner = {
     'mlb': {
         'station': 96.7,
         'duration': 5
+    },
+    'nba': {
+        'station': 100.5,
+        'duration': 3.5
+    },
+    'studio_m': {
+        'station': 105.5,
+        'duration': 1
     }
 }
 
@@ -115,7 +124,7 @@ def tune(station, capture_command, logfile='/dev/null'):
         "-ac", "2",
         '-map', '0:0',
         '-f', 'segment',
-        '-segment_time', '5',
+        '-segment_time', '3',
         '-segment_list', playlist,
         '-segment_format', seg,
         '-segment_list_flags', 'live',
@@ -177,7 +186,8 @@ def render_game_info(data):
 
     param:data - input JSON
     """
-    date_obj = iso8601.parse_date(data.get('scheduled_cst'))
+    date_obj = iso8601.parse_date(
+        data.get('scheduled_cst', datetime.datetime.now().isoformat()))
     gamedate = date_obj.strftime("%A, %B %d %Y")
     gametime = date_obj.strftime("%I:%M %p").lstrip('0')
     date = "{date} {time}".format(date=gamedate, time=gametime)
@@ -216,24 +226,25 @@ def merge(gameinfo, station):
         tmp.write(output)
         os.chown(tmp.name, 1000, 1000)
         tmp.flush()
-        home_team = gameinfo.get('home')
-        away_team = gameinfo.get('away')
-        date_sched = gameinfo.get('scheduled_at').split().pop()
+        home_team = gameinfo.get('home', 'manual')
+        away_team = gameinfo.get('away', 'manual')
+        date_sched = gameinfo.get('scheduled_at', datetime.datetime.now().strftime("%Y-%m-%d")).split().pop()
         output_file = "/mnt/megapenthes/Badgers/{away}-vs-{home}-{sport}-{date}.mp3".format(
             away=away_team,
             home=home_team,
             date=date_sched,
-            sport=gameinfo.get('sport', 'unk')
+            sport=gameinfo.get('sport', 'unknown')
         ).replace(' ', '-')
         if os.path.isfile(output_file):
             os.remove(output_file)
-        encode = ['ffmpeg', '-f', 'concat', '-safe', '0', '-i', tmp.name, '-c', 'copy', output_file]
-        try:
-            # Run ffmpeg as non-root so that the output is actually readable
-            check_call(encode, stdout=DEVNULL, stderr=DEVNULL)
+        encode = ['/usr/bin/ffmpeg', '-f', 'concat', '-safe', '0', '-i', tmp.name, '-c', 'copy', output_file]
+        result = run(encode)
+        if result.returncode == 0:
             print("Stored game as {}".format(output_file))
-        except:
-            traceback.print_exc()
+        else:
+            print("Error storing game!")
+            print(result.stderr)
+            print(result.stdout)
 
 def render_html(config):
     """
@@ -265,6 +276,8 @@ def render_html(config):
     for output, templatename in rendermap.items():
         with open(output, 'w') as outfp:
             host = address_config.get('remote_address')
+            if os.environ.get('DOMAIN'):
+                host = "https://{}".format(os.environ.get('DOMAIN'))
             jsfile = "custom.js"
             if 'local' in output:
                 host = address_config.get('local_address')
@@ -310,9 +323,9 @@ def schedule_tune(config, now=False):
     else:
         start_at = iso8601.parse_date(config['scheduled'])
 
-    sleep_duration = (start_at - now_time)
+    sleep_duration = (start_at - (datetime.timedelta(seconds=600)) - now_time)
     print("Sleeping for {} until {} starts".format(sleep_duration, config['odds']))
-    time.sleep(sleep_duration.total_seconds())
+    time.sleep(max(3, sleep_duration.total_seconds()))
     render_html(config)
 
     print("Starting recording of {} for {}s".format(config['odds'], duration_seconds))
@@ -349,7 +362,7 @@ def dequeue(now=False):
     for x in range(5):
         print("RabbitMQ connection attempt {}".format(x))
         try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host='rmq'))
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host='rmq', heartbeat=600, blocked_connection_timeout=300))
             channel = connection.channel()
             channel.queue_declare(queue='schedule')
             break
@@ -384,8 +397,8 @@ def dequeue(now=False):
         # if a game with this existing id has been scheduled already,
         # make sure this isn't a reschedule event and just continue
         if existing:
-            if existing.get('config', {}).get('scheduled') != config.get('scheduled'):
-                print("Rescheduling existing {} [{}] for {}".format(
+            if existing.get('config', {}).get('scheduled') != config.get('scheduled') or existing.get('config', {}).get('odds') != config.get('odds'):
+                print("Updating {} [{}] for {}".format(
                     existing['config']['scheduled'],
                     existing['config']['id'],
                     config.get('scheduled')
@@ -393,9 +406,10 @@ def dequeue(now=False):
                 existing.get('proc').terminate()
                 del sched_procs[config['id']]
             else:
-                print("Not changing process already scheduled for: {} [{}]".format(
-                    existing['config']['scheduled'],
-                    existing['config']['id']
+                print("Not changing {} already scheduled for: {} {} [{}]".format(
+                    existing['config']['odds'],
+                    existing['config']['day'], existing['config']['time'],
+                    existing['config']['id'][0:8]
                 ))
                 return
 
@@ -407,7 +421,7 @@ def dequeue(now=False):
         }
         print("Pending recordings:\n{}".format(
             "\n".join(["{}: {} {}".format(
-                i,x['config']['scheduled_cst'], x['config']['odds']) for i,x in enumerate(sched_procs.values())])
+                i,x['config']['day'] + ' ' + x['config']['time'], x['config']['odds']) for i,x in enumerate(sched_procs.values())])
         ))
 
     channel.basic_consume(queue='schedule', on_message_callback=sched_process, auto_ack=True)
@@ -424,7 +438,11 @@ if __name__ == '__main__':
     parser.add_argument('--now', action='store_true', help='Start now instead of waiting until time for event')
     parser.add_argument('--sport', choices=list(tuner.keys()))
     args = parser.parse_args()
-
+    render_html({
+        'home': "waiting for schedule",
+        'away': "pending",
+        'sport': "ncaab"
+    })
     if args.sport:
         schedule_tune(
             {
@@ -437,3 +455,4 @@ if __name__ == '__main__':
             })
     else:
         dequeue(now=args.now)
+        
