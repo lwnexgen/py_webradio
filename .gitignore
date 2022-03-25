@@ -8,3 +8,4 @@ domain-info
 tuner-env.env
 live-env
 docker-compose.yml
+server/tuner-conf.d/.htpasswd
