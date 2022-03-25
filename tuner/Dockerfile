@@ -1,5 +1,6 @@
-FROM fedora:latest AS softfm
+FROM fedora:34 AS softfm
 
+RUN dnf -y clean all
 RUN dnf -y install python3 python3-virtualenv cmake numpy gcc
 RUN dnf -y install gcc-c++ gcc
 RUN dnf -y install alsa-lib alsa-lib-devel
@@ -54,13 +55,14 @@ RUN ldconfig
 
 # Build airspy-fmradion
 RUN dnf -y install volk volk-devel libsndfile libsndfile-utils libsndfile-devel
-RUN git clone https://github.com/jj1bdx/airspy-fmradion.git /tmp/airspy-fmradion
+RUN git clone -b 20211101-0 https://github.com/jj1bdx/airspy-fmradion.git /tmp/airspy-fmradion
 RUN mkdir /tmp/airspy-fmradion/build
 WORKDIR /tmp/airspy-fmradion/build
+RUN cat /tmp/airspyhf/build/install_manifest.txt
 RUN cmake ..
 RUN make -j4
 
-FROM fedora:latest
+FROM fedora:34
 
 # bootstrap dependencies
 RUN dnf -y install make

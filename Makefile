@@ -13,30 +13,43 @@ disk:
 	python render-compose.py > docker-compose.yml
 
 # build images fresh and start in "schedule" mode
-btest: disk
+btest: stop disk
 	cat sched-env >> tuner/tuner-env.env
-	docker-compose down ||:
-	docker-compose up --build --detach
-	docker-compose logs -f tuner
+	docker-compose up --detach --build
+	make test
 
 # start in "schedule" mode
-test: disk
+test: stop disk
 	cat sched-env >> tuner/tuner-env.env
-	docker-compose down ||:
 	docker-compose up --detach
-	docker-compose logs -f tuner
+	sleep 10 && docker-compose restart server
+	docker-compose logs -f letsencrypt server tuner
 
-ncaaf:
+stop:
+	docker-compose stop -t 1 ||:
+	docker image prune -f
+	docker container prune -f
+	docker volume rm -f py_webradio_webdata
+
+ncaaf: disk
 	docker-compose stop tuner ||:
 	docker-compose run tuner --sport ncaaf
 
-nfl:
+nfl: disk
 	docker-compose stop tuner ||:
 	docker-compose run tuner --sport nfl
 
-mlb:
+mlb: disk
 	docker-compose stop tuner ||:
 	docker-compose run tuner --sport mlb
+
+nba: disk
+	docker-compose stop tuner ||:
+	docker-compose run tuner --sport nba
+
+studio_m: disk
+	docker-compose stop tuner ||:
+	docker-compose run tuner --sport studio_m
 
 fake: disk
 	cat sched-env >> tuner/tuner-env.env
