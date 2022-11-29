@@ -12,4 +12,5 @@ certbot -v --non-interactive install -d "$DOMAIN" --cert-name "$DOMAIN" --nginx 
 
 /usr/sbin/nginx -s stop;
 sleep 10;
+
 /usr/sbin/nginx -g "daemon off;"

@@ -19,20 +19,10 @@ def cmd():
 if __name__ == '__main__':
     args = cmd()
     srand = random.SystemRandom()
-
-    for fn in glob.glob('/var/spool/at/*'):
-        if os.path.split(fn)[-1] == 'spool':
-            continue
-        os.remove(fn)
-
-    for sched in glob.glob("/var/spool/at/*"):
-        print(sched)
     
     while not args:
         schedule()
-        print(subprocess.check_output(["atq"]))
-        time.sleep(60)
-        # time.sleep(srand.randint(300, 1200))
+        time.sleep(srand.randint(300, 1200))
 
     print("Executing following: {}".format(args))
     os.execv(args[0], args)

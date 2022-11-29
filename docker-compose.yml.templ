@@ -24,6 +24,7 @@ services:
     build: tuner/
     image: pywebtuner:latest
     privileged: true
+    restart: unless-stopped
     volumes:
       - webdata:/var/www/html:rw
       - /mnt/megapenthes/Badgers:/mnt/megapenthes/Badgers:rw
@@ -36,6 +37,21 @@ services:
       - rmq
     env_file:
       - tuner/tuner-env.env
+  navidrome:
+    image: deluan/navidrome:latest
+    user: 1000:1000
+    ports:
+      - "DEFINEIP:4533:4533"
+    restart: unless-stopped
+    environment:
+      # This is part of my reverse proxy setup; see below.
+      ND_BASEURL: /navidrome
+      # Re-scan the music library every 15 minutes.
+      ND_LOGLEVEL: info
+      ND_SESSIONTIMEOUT: 24h
+    volumes:
+      - "/mnt/megapenthes/Development/navidrome-service/data:/data"
+      - "/mnt/megapenthes/Music:/music:ro"
   server:
     build: server/
     image: pywebserver:latest
