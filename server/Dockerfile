@@ -38,6 +38,7 @@ COPY tuner-conf.d/.htpasswd /etc/nginx/.htpasswd
 # Entrypoint setup
 COPY nginx-entrypoint.sh /tmp/entrypoint-nginx.sh
 
+RUN cat /etc/nginx/conf.d/default.conf
 RUN nginx -t
 
 # Entrypoint

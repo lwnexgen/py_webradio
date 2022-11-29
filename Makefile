@@ -11,6 +11,7 @@ disk:
 	rm -f tuner-env.env
 	cp domain-info tuner/tuner-env.env
 	python render-compose.py > docker-compose.yml
+	docker volume rm -f py_webradio_webdata
 
 # build images fresh and start in "schedule" mode
 btest: stop disk

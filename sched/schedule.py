@@ -17,6 +17,7 @@ from pipes import quote
 
 import datetime
 import glob
+import math
 import json
 import os
 import subprocess
@@ -24,19 +25,34 @@ import sys
 import hashlib
 import time
 import traceback
+import random
+
+TEAM_MAP = {
+    "Wisconsin": "wisconsin-badgers",
+    "Packers": "green-bay-packers",
+    "Milwaukee": {
+        "nba": "Bucks",
+        "mlb": "Brewers",
+    }
+}
+
+# "ncaaf":
+# "nfl": "https://www.vegasinsider.com/nfl/teams/{}/",
+# "mlb": "https://www.vegasinsider.com/mlb/odds/las-vegas/"
 
 SOURCES = {
-    "ncaab": "https://www.vegasinsider.com/college-basketball/teams/{}/",
-    "ncaaf": "https://www.vegasinsider.com/college-football/teams/{}/",
-    "nfl": "https://www.vegasinsider.com/nfl/teams/{}/",
-    "mlb": "https://www.vegasinsider.com/mlb/odds/las-vegas/"
+    "ncaab": "https://www.actionnetwork.com/ncaab/odds/{}",
+    "ncaaf": "https://www.actionnetwork.com/ncaaf/odds/{}",
+    "nfl": "https://www.actionnetwork.com/nfl/odds/{}",
+    "nba": "https://www.actionnetwork.com/nba/odds/{}"
 }
 
 favorites = {
     'nfl': ['Packers'],
     'ncaaf': ['Wisconsin'],
     'ncaab': ['Wisconsin'],
-    'mlb': ['Milwaukee']
+    'nba': ['milwaukee-bucks'],
+    'mlb': ['milwaukee-brewers']
 }
 
 tuner = {
@@ -51,6 +67,18 @@ tuner = {
     'ncaaf': {
         'station': 101.5,
         'duration': 5
+    },
+    'mlb': {
+        'station': 96.7,
+        'duration': 5
+    },
+    'nba': {
+        'station': 100.5,
+        'duration': 3.5
+    },
+    'studio_m': {
+        'station': 105.5,
+        'duration': 1
     }
 }
 
@@ -62,24 +90,23 @@ def is_float(inp):
         pass
     return False
 
-def parse_odds(odds_string):
-    try:
-        home_odds_r = float(odds_string.split()[-1])
-        away_odds_r = home_odds_r * -1
-        home_odds = str(home_odds_r)
-        away_odds = str(away_odds_r)
-        if home_odds_r > 0:
-            home_odds = "+" + str(home_odds_r)
-        if away_odds_r > 0:
-            away_odds = "+" + str(away_odds_r)        
-        return home_odds, away_odds
-    except:
-        return '?', '?'
+def parse_odds(soup):
+    home_spread = "?"
+    away_spread = "?"
 
-def scrape_matchup(url, rel_url, sport, favorite):
-    matchup_url = url + '../../..' + rel_url
     try:
-        src = requests.get(matchup_url).text        
+        options = [x for x in soup.findAll('thead') if 'Spread' in x.text][0]
+        away_spread = options.parent.findAll('div', { 'data-testid': 'book-cell__odds' })[0].findAll('span')[0].text
+        home_spread = options.parent.findAll('div', { 'data-testid': 'book-cell__odds' })[3].findAll('span')[0].text
+    except:
+        pass
+
+    return home_spread, away_spread
+
+def scrape_matchup(url, rel_url, sport, favorite, headers):
+    matchup_url = url + '/../../..' + rel_url
+    try:
+        src = requests.get(matchup_url, headers=headers).text
     except:
         print("Error scraping matchup url {}, retrying in 30s".format(matchup_url))
         time.sleep(30)
@@ -87,11 +114,26 @@ def scrape_matchup(url, rel_url, sport, favorite):
 
     try:
         soup = Soup(src, 'html.parser')
-        datestr = ' '.join(soup.findAll('span', {'class': 'text-white'})[0].text.replace(',', '').split())
-        teams = ' '.join(sorted([ x.text.strip() for x in soup.findAll('div') if favorite in x.text and '@' in x.text ], key=lambda y: len(y))[0].split())
-        away, home = teams.split(' @ ', 1)
-        home_odds, away_odds = parse_odds("")
-        scheduled_est = arrow.get(datestr.replace(' ET', ' US/Eastern'), 'ddd MMM D YYYY h:mm A ZZZ')
+        datestr = soup.findAll('div', {'class': 'game-odds__date-container'})[0].text
+        scheduled_utc = arrow.get(datestr.replace('a.m.', 'AM ').replace('p.m.', 'PM ') + ' UTC', 'dddd h:mm A MMMM D, YYYY')
+        scheduled_est = scheduled_utc.to('US/Eastern')
+        teams = soup.findAll('h1', {'class': 'game-odds__title'})[0].text.replace(' Odds', '')
+        away, home = teams.split(' vs. ', 1)
+
+        now_utc = arrow.utcnow()
+        how_long = scheduled_utc.timestamp - now_utc.timestamp
+
+        if sport == 'nba':
+            print("UTC: {}, EST: {}, raw: {}, now: {}, calc: {}s".format(scheduled_utc, scheduled_est, datestr, now_utc, how_long))
+
+        if how_long < 0 and math.fabs(how_long) > 4 * 3600:
+            print("Not scheduling a game ({} @ {}) more than 4hrs old".format(away, home))
+            return None
+
+        try:
+            home_odds, away_odds = parse_odds(soup)
+        except:
+            home_odds, away_odds = '?', '?'
     except Exception as exc:
         print("Unable to parse {}\n{}".format(matchup_url, exc))
         # traceback.print_exc()
@@ -122,20 +164,30 @@ def scrape_matchup(url, rel_url, sport, favorite):
     return matchup
 
 def scrape_sport_favorite(sport, url, favorite):
-    url = url.format(favorite)
+    url = url.format(TEAM_MAP.get(favorite, favorite))
+
+    hl = hashlib.md5()
+    hl.update(str(datetime.datetime.now()).encode('utf-8'))
+
+    headers = {
+        'User-Agent': hl.hexdigest()
+    }
+
     try:
-        src = requests.get(url).text
+        src = requests.get(url, headers=headers).text
     except:
         print("Error scraping {}, retrying in 30s".format(url))
         time.sleep(30)
         return scrape_sport(sport, url, favorite)
+
     soup = Soup(src, 'html.parser')
     matchups = []
-    for matchup in [x for x in soup.findAll('div', {'class': 'flex-equalize pr-2'})]:
-        matchup_link = matchup.findAll('a', {'class': 'matchup-link'})[0].get('href')
-        scraped = scrape_matchup(url, matchup_link, sport, favorite)
+    for matchup in [x for x in soup.findAll('a', {'class': 'next-game__details-link'})]:
+        matchup_link = matchup.get('href')
+        scraped = scrape_matchup(url, matchup_link, sport, favorite, headers)
         if scraped is not None:
             matchups.append(scraped)
+            break
     return matchups
 
 def scrape_sport(sport, url, favorites):
@@ -213,6 +265,28 @@ def queue(config, rmq, queuename='schedule'):
     rmq.basic_publish(exchange='', routing_key=queuename, body=json.dumps(config))
     print("Queued: {} [{}]".format(config.get('odds'), config.get('id')))
 
+def rmq_connect():
+    queuename = 'schedule'
+    for x in range(5):
+        print("RabbitMQ connection attempt {}".format(x))
+        try:
+            rmq = pika.BlockingConnection(pika.ConnectionParameters('rmq'))
+            channel = rmq.channel()
+            channel.queue_declare(queue=queuename)
+            break
+        except Exception as exc:
+            print("Unsuccesful attempt {}".format(x))
+            if x == 4:
+                traceback.print_exc()
+        time.sleep(5)
+    if rmq is None:
+        sys.exit(1)
+    else:
+        print("Connection sucessful")
+        return rmq, channel
+    return None, None
+
+
 def schedule(skipmq=False):
     """
     Scrape all upcoming events for my favorite teams over the next couple of days
@@ -223,29 +297,13 @@ def schedule(skipmq=False):
     matchups = scrape()
     upcoming = []
     rmq = None
-    queuename = 'schedule'
     for matchup in sorted(matchups, key=lambda x: x['scheduled']):
-        for favorite in favorites[matchup["sport"]]:
-            if skipmq is False and rmq is None:                
-                for x in range(5):
-                    print("RabbitMQ connection attempt {}".format(x))
-                    try:
-                        rmq = pika.BlockingConnection(pika.ConnectionParameters('rmq'))
-                        channel = rmq.channel()
-                        channel.queue_declare(queue=queuename)
-                        break
-                    except Exception as exc:
-                        print("Unsuccesful attempt {}".format(x))
-                        if x == 4:
-                            traceback.print_exc()
-                        time.sleep(5)
-                if rmq is None:
-                    sys.exit(1)
-                else:
-                    print("Connection sucessful")
-            if favorite in str(matchup):
-                if skipmq is False:
-                    queue(matchup, channel)
+        if skipmq is False and rmq is None:
+            rmq, channel = rmq_connect()
+        if skipmq is False:
+            queue(matchup, channel)
+        else:
+            print(matchup['odds'])
     if rmq:
         print("Closing RMQ connection")
         rmq.close()
@@ -253,4 +311,4 @@ def schedule(skipmq=False):
 if __name__ == "__main__":
     while True:
         schedule(skipmq=True)
-        time.sleep(600)
+        time.sleep(5)

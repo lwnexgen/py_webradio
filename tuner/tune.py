@@ -79,24 +79,15 @@ tuner = {
     }
 }
 
-gains = {
-    "96.7": "22.9",
-    "100.5": "22.9",
-    "101.5": "7.7"
-}
-
-squelches = {
-    "96.7": "10"
-}
-
-# "96.7": "highpass=f=200,lowpass=f=3000"
+gains = {}
+squelches = {}
 filters = {}
 
 def tune(station, capture_command, logfile='/dev/null'):
     """
     Tune into the given station, and write out an m3u8 file
 
-    RTL2832U -> (SoftFM | RTL-SDR) -> (ffmpeg | m3u8) -> Apache -> Clappr
+    RTL2832U -> (Airspy | RTL-SDR) -> (ffmpeg | m3u8) -> Clappr <- nginx
 
     Dependencies:
     https://github.com/jorisvr/SoftFM (FM tuning tools for RTL-SDR)
@@ -121,7 +112,7 @@ def tune(station, capture_command, logfile='/dev/null'):
         '-i', '-',
         '-c:a', fmt,
         '-b:a', '48k',
-        "-ac", "2",
+        '-ac', "2",
         '-map', '0:0',
         '-f', 'segment',
         '-segment_time', '3',
@@ -238,13 +229,11 @@ def merge(gameinfo, station):
         if os.path.isfile(output_file):
             os.remove(output_file)
         encode = ['/usr/bin/ffmpeg', '-f', 'concat', '-safe', '0', '-i', tmp.name, '-c', 'copy', output_file]
-        result = run(encode)
-        if result.returncode == 0:
+        try:
+            result = check_output(encode)
             print("Stored game as {}".format(output_file))
-        else:
-            print("Error storing game!")
-            print(result.stderr)
-            print(result.stdout)
+        except Exception as exc:
+            print(traceback.format_exc())
 
 def render_html(config):
     """
@@ -274,6 +263,10 @@ def render_html(config):
         sys.exit(1)
 
     for output, templatename in rendermap.items():
+        if os.path.exists(output):
+            os.remove(output)
+        for mp3 in glob.glob('*.mp3'):
+            os.remove(mp3)
         with open(output, 'w') as outfp:
             host = address_config.get('remote_address')
             if os.environ.get('DOMAIN'):
@@ -307,12 +300,11 @@ def schedule_tune(config, now=False):
         'pysched/bin/airspy-fmradion',
         '-m', 'fm',
         '-t', 'rtlsdr',
-        '-E8',
-        "-M",
-        '-c', 'freq={},gain={}'.format(
+        '-c', 'freq={}'.format(
             station_hz,
-            gains.get(str(station), "auto")
         ),
+        '-E8',
+        '-M',
         '-R', '-'
     ]
     now_time = datetime.datetime.now(datetime.timezone.utc)
@@ -324,6 +316,12 @@ def schedule_tune(config, now=False):
         start_at = iso8601.parse_date(config['scheduled'])
 
     sleep_duration = (start_at - (datetime.timedelta(seconds=600)) - now_time)
+
+    # if this is more than 4 hours in the past, don't tune
+    if sleep_duration.total_seconds() < -1 * 4 * 3600:
+        print("Not tuning for {} in {}s in the past".format(config.get('odds'), sleep_duration.total_seconds()))
+        return None
+
     print("Sleeping for {} until {} starts".format(sleep_duration, config['odds']))
     time.sleep(max(3, sleep_duration.total_seconds()))
     render_html(config)
@@ -348,6 +346,7 @@ def schedule_tune(config, now=False):
         killall(procs=[pcapture,pencode])
         if normal_exit:
             merge(gameinfo_json, station)
+    sys.exit(0)
     return normal_exit
 
 sched_procs = {}
@@ -398,10 +397,16 @@ def dequeue(now=False):
         # make sure this isn't a reschedule event and just continue
         if existing:
             if existing.get('config', {}).get('scheduled') != config.get('scheduled') or existing.get('config', {}).get('odds') != config.get('odds'):
-                print("Updating {} [{}] for {}".format(
-                    existing['config']['scheduled'],
-                    existing['config']['id'],
-                    config.get('scheduled')
+                print("Updating {}: {} {} [{}] -> {} {} [{}]".format(
+                    existing['config']['odds'],
+
+                    existing['config']['odds'],
+                    existing['config']['day'], existing['config']['time'],
+                    existing['config']['id'][0:8],
+
+                    config['odds'],
+                    config['day'], config['time'],
+                    config['id'][0:8]
                 ))
                 existing.get('proc').terminate()
                 del sched_procs[config['id']]
@@ -455,4 +460,3 @@ if __name__ == '__main__':
             })
     else:
         dequeue(now=args.now)
-        
