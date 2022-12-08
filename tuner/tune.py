@@ -51,6 +51,12 @@ def killall(procs=None):
                 p.kill()
             except:
                 pass
+    time.sleep(30)
+    for proc in ['ffmpeg', 'airspy-fmradion']:
+        try:
+            run(['pkill', '-9', '-f', proc])
+        except:
+            pass
 
 tuner = {
     'nfl': {
@@ -397,8 +403,9 @@ def dequeue(now=False):
         # make sure this isn't a reschedule event and just continue
         if existing:
             if existing.get('config', {}).get('scheduled') != config.get('scheduled') or existing.get('config', {}).get('odds') != config.get('odds'):
-                print("Updating {}: {} {} [{}] -> {} {} [{}]".format(
+                print("Updating {} ({}): {} {} [{}] -> {} {} [{}]".format(
                     existing['config']['odds'],
+                    existing.get('proc'),
 
                     existing['config']['odds'],
                     existing['config']['day'], existing['config']['time'],
@@ -408,7 +415,7 @@ def dequeue(now=False):
                     config['day'], config['time'],
                     config['id'][0:8]
                 ))
-                existing.get('proc').terminate()
+                existing.get('proc').kill()
                 del sched_procs[config['id']]
             else:
                 print("Not changing {} already scheduled for: {} {} [{}]".format(
