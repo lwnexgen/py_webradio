@@ -82,6 +82,10 @@ tuner = {
     'studio_m': {
         'station': 105.5,
         'duration': 1
+    },
+    'delay': {
+        'station': 101.5,
+        'duration': .01
     }
 }
 
@@ -214,6 +218,9 @@ def merge(gameinfo, station):
     if not gameinfo:
         return
     m3u8 = "/var/www/html/webtune_live/{}.m3u8".format(str(station).replace('.', '_'))
+    if not os.path.exists(m3u8):
+        print(f"Couldn't find {m3u8} on disk")
+        return
     mp3s = [x.strip() for x in open(m3u8, 'r').readlines() if x.strip().endswith('.mp3')]
     # write a list of mp3s to a temp file that ffmpeg can read out of
     with tempfile.NamedTemporaryFile(mode='w') as tmp:
@@ -236,7 +243,8 @@ def merge(gameinfo, station):
             os.remove(output_file)
         encode = ['/usr/bin/ffmpeg', '-f', 'concat', '-safe', '0', '-i', tmp.name, '-c', 'copy', output_file]
         try:
-            result = check_output(encode)
+            with open('merge.log', 'a') as mergelog:
+                result = check_output(encode, stderr=mergelog)
             print("Stored game as {}".format(output_file))
         except Exception as exc:
             print(traceback.format_exc())
@@ -299,7 +307,7 @@ def schedule_tune(config, now=False):
     """
     tcfg = tuner.get(config.get('sport'))
     station = float(tcfg.get('station'))
-    duration_seconds = tcfg.get('duration') * (60*60)
+    duration_seconds = int(os.environ.get("DURATION", tcfg.get('duration') * (60*60)))
     station_hz = int(station * 1000000.0)
     gameinfo_json = config
     capture_command = [
@@ -338,21 +346,25 @@ def schedule_tune(config, now=False):
         start = datetime.datetime.now()
         stop = datetime.timedelta(seconds=duration_seconds)
         normal_exit = False
-        while datetime.datetime.now() < start + stop:
+        elapsed = 0
+        while elapsed < duration_seconds:
             time.sleep(1)
             if pcapture.poll() or pencode.poll():
                 raise Exception("Capture/encode process stopped")
+            elapsed = (datetime.datetime.now() - start).seconds
+            if elapsed % 15 == 0:
+                print(f"Recorded for {elapsed}s using PIDs: {pcapture.pid},{pencode.pid}")
         normal_exit = True
         print("Recorded {} from {} to {}".format(
             config['odds'], start, datetime.datetime.now()
         ))
     except:
-        pass
+        import traceback ; traceback.print_exc()
     finally:
-        killall(procs=[pcapture,pencode])
+        killall(procs=[pcapture,pencode])            
         if normal_exit:
             merge(gameinfo_json, station)
-    sys.exit(0)
+    print("Finished tuning and saving recording")
     return normal_exit
 
 sched_procs = {}
@@ -384,13 +396,6 @@ def dequeue(now=False):
             if id == config.get('id'):
                 existing = scheduled
                 break
-            if not scheduled.get('proc').is_alive():
-                dead.append(id)
-
-        # no need to keep these around
-        for id in dead:
-            print("Finished recording {}, removing".format(sched_procs[id]['config']['odds']))
-            del sched_procs[id]
 
         # first thread wins if 'now' is specified
         if now and sched_procs:
@@ -418,25 +423,37 @@ def dequeue(now=False):
                 existing.get('proc').kill()
                 del sched_procs[config['id']]
             else:
-                print("Not changing {} already scheduled for: {} {} [{}]".format(
+                message = "Not changing {} already scheduled for: {} {} [{}]".format(
                     existing['config']['odds'],
                     existing['config']['day'], existing['config']['time'],
                     existing['config']['id'][0:8]
-                ))
+                )
+                date = datetime.datetime.now().isoformat()
+                with open('status.log', 'a') as status:
+                    status.write(f'{date}: {message}\n')
+                if os.environ.get('DEBUG'):
+                    print(message)
                 return
 
+        for proc_id in list(sched_procs.keys()):
+            if not sched_procs[proc_id]['proc'].is_alive():
+                print("Removing finished process {}".format(proc['proc']))
+                del sched_procs[proc_id]
+            
         future_tune = Process(target=schedule_tune, args=(config,), kwargs={'now': now})
         future_tune.start()
         sched_procs[config['id']] = {
             'config': config,
             'proc': future_tune,
         }
+
         print("Pending recordings:\n{}".format(
             "\n".join(["{}: {} {}".format(
-                i,x['config']['day'] + ' ' + x['config']['time'], x['config']['odds']) for i,x in enumerate(sched_procs.values())])
+                i,x['config']['day'] + ' ' + x['config']['time'], x['config']['odds']) for i,x in enumerate(sched_procs.values()) if x['proc'].is_alive()])
         ))
-
+        
     channel.basic_consume(queue='schedule', on_message_callback=sched_process, auto_ack=True)
+
     if now:
         print('[Warning] Running in "now" mode')
         print('[Successful] Waiting for RabbitMQ messages from sched container')
