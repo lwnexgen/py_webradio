@@ -15,6 +15,7 @@ services:
       - sched/sched-env.env
     volumes:
       - ./sched/schedule.py:/tmp/schedule.py
+      - CODEDIR/py_webradio/schedule_skip.log:/tmp/schedule_skip.log:rw
     logging:
       options:
         max-size: "200k"
@@ -29,6 +30,8 @@ services:
       - webdata:/var/www/html:rw
       - /mnt/megapenthes/Badgers:/mnt/megapenthes/Badgers:rw
       - ./tuner/tune.py:/tmp/pysched/tune.py:ro
+      - CODEDIR/py_webradio/status.log:/tmp/pysched/status.log:rw
+      - CODEDIR/py_webradio/merge.log:/tmp/pysched/merge.log:rw
     logging:
       options:
         max-size: "200k"
@@ -50,8 +53,8 @@ services:
       ND_LOGLEVEL: info
       ND_SESSIONTIMEOUT: 24h
     volumes:
-      - "/mnt/megapenthes/Development/navidrome-service/data:/data"
-      - "/mnt/megapenthes/Music:/music:ro"
+      - "CODEDIR/navidrome-service/data:/data"
+      - "BASEDIR/Music:/music:ro"
   server:
     build: server/
     image: pywebserver:latest
@@ -62,7 +65,7 @@ services:
       - ./logs/:/var/log/nginx:rw
       - ./server/nginx-entrypoint.sh:/tmp/entrypoint-nginx.sh:ro
     env_file:
-      - tuner/tuner-env.env
+      - server/server-env.env
     ports:
       - "DEFINEIP:443:443"
     logging:
@@ -79,7 +82,7 @@ services:
       - webdata:/var/www/html:rw
       - ./le-logs:/var/log/letsencrypt:rw
     env_file:
-      - tuner/tuner-env.env
+      - server/server-env.env
     ports:
       - "DEFINEIP:80:80"
 volumes:
