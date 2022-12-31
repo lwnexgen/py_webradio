@@ -233,7 +233,7 @@ def merge(gameinfo, station):
         home_team = gameinfo.get('home', 'manual')
         away_team = gameinfo.get('away', 'manual')
         date_sched = gameinfo.get('scheduled_at', datetime.datetime.now().strftime("%Y-%m-%d")).split().pop()
-        output_file = "***REMOVED***/Badgers/{away}-vs-{home}-{sport}-{date}.mp3".format(
+        output_file = "/mnt/megapenthes/Badgers/{away}-vs-{home}-{sport}-{date}.mp3".format(
             away=away_team,
             home=home_team,
             date=date_sched,
