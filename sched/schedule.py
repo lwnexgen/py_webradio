@@ -15,6 +15,7 @@ import pika
 
 from pipes import quote
 
+import argparse
 import datetime
 import glob
 import math
@@ -123,11 +124,10 @@ def scrape_matchup(url, rel_url, sport, favorite, headers):
         now_utc = arrow.utcnow()
         how_long = scheduled_utc.timestamp - now_utc.timestamp
 
-        if sport == 'nba':
-            print("UTC: {}, EST: {}, raw: {}, now: {}, calc: {}s".format(scheduled_utc, scheduled_est, datestr, now_utc, how_long))
-
         if how_long < 0 and math.fabs(how_long) > 4 * 3600:
-            print("Not scheduling a game ({} @ {}) more than 4hrs old".format(away, home))
+            with open('schedule_skip.log', 'a') as sc:
+                sc.write("Not scheduling a game ({} @ {}) more than 4hrs old".format(away, home))
+                sc.flush()
             return None
 
         try:
@@ -287,13 +287,13 @@ def rmq_connect():
     return None, None
 
 
-def schedule(skipmq=False):
+def schedule(skipmq=False, show_time_only=False):
     """
     Scrape all upcoming events for my favorite teams over the next couple of days
+
+    skipmq: don't try to add to rabbitmq
+    show_time_only: show timestamp of first event (for passing to libfaketime)
     """
-    print("Current time is: {}".format(
-        datetime.datetime.now()
-    ))
     matchups = scrape()
     upcoming = []
     rmq = None
@@ -303,12 +303,23 @@ def schedule(skipmq=False):
         if skipmq is False:
             queue(matchup, channel)
         else:
-            print(matchup['odds'])
+            if show_time_only:
+                offset_time = (arrow.get(matchup['scheduled']).datetime - datetime.timedelta(minutes=10, seconds=30)).strftime('%Y-%m-%d %H:%M:%S')
+                print(f"FAKETIME=@{offset_time}")
+                break
+            else:
+                print(matchup['odds'])
     if rmq:
         print("Closing RMQ connection")
         rmq.close()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser("Schedule events based on published odds")
+    parser.add_argument('--time', action='store_true', help='Show time of events only')
+    args = parser.parse_args()
+
     while True:
-        schedule(skipmq=True)
+        schedule(skipmq=True, show_time_only=args.time)
         time.sleep(5)
+        if args.time:
+            break

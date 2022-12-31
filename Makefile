@@ -8,16 +8,31 @@ local_pysched:
 # docker-compose startup stuff
 disk:
 	lsmod | grep -q dvb_usb_rt128xxu && sudo modprobe -r dvb_usb_rtl28xxu ||:
-	rm -f tuner-env.env
+	rm -rf status.log merge.log schedule_skip.log
 	cp domain-info tuner/tuner-env.env
+	cp domain-info server/server-env.env
 	python render-compose.py > docker-compose.yml
 	docker volume rm -f py_webradio_webdata
+	touch status.log merge.log schedule_skip.log
 
 # build images fresh and start in "schedule" mode
 btest: stop disk
 	cat sched-env >> tuner/tuner-env.env
 	docker-compose up --detach --build
 	make test
+
+# Tune for a few minutes pretending
+demo: stop disk
+	cat sched-env >> tuner/tuner-env.env
+	cat sched-env >> server/server-env.env
+	cat demo-env >> tuner/tuner-env.env
+	echo "$(shell sched/pysched/bin/python sched/schedule.py --time | grep FAKETIME | head -n 1)" >> tuner/tuner-env.env
+	echo "DURATION=62" >> tuner/tuner-env.env
+	echo "FAKETIME_DONT_RESET=1" >> tuner/tuner-env.env
+	cat tuner/tuner-env.env
+	docker-compose up --detach
+	sleep 10 && docker-compose restart server
+	docker-compose logs -f letsencrypt server tuner
 
 # start in "schedule" mode
 test: stop disk
@@ -34,23 +49,28 @@ stop:
 
 ncaaf: disk
 	docker-compose stop tuner ||:
-	docker-compose run tuner --sport ncaaf
+	docker-compose rm tuner ||:
+	docker-compose run --rm tuner --sport ncaaf
 
 nfl: disk
 	docker-compose stop tuner ||:
-	docker-compose run tuner --sport nfl
+	docker-compose run --rm tuner --sport nfl
 
 mlb: disk
 	docker-compose stop tuner ||:
-	docker-compose run tuner --sport mlb
+	docker-compose run --rm tuner --sport mlb
+
+delay: disk
+	docker-compose stop tuner ||:
+	docker-compose run --rm --rm tuner --sport delay
 
 nba: disk
 	docker-compose stop tuner ||:
-	docker-compose run tuner --sport nba
+	docker-compose run --rm tuner --sport nba
 
 studio_m: disk
 	docker-compose stop tuner ||:
-	docker-compose run tuner --sport studio_m
+	docker-compose run --rm tuner --sport studio_m
 
 fake: disk
 	cat sched-env >> tuner/tuner-env.env
