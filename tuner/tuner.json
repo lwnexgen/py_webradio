@@ -1,30 +1,30 @@
 {
-    'nfl': {
-        'station': 101.5,
-        'duration': 4
+    "nfl": {
+        "station": 101.5,
+        "duration": 4
     },
-    'ncaab': {
-        'station': 101.5,
-        'duration': 4
+    "ncaab": {
+        "station": 101.5,
+        "duration": 4
     },
-    'ncaaf': {
-        'station': 101.5,
-        'duration': 5
+    "ncaaf": {
+        "station": 101.5,
+        "duration": 5
     },
-    'mlb': {
-        'station': 96.7,
-        'duration': 5
+    "mlb": {
+        "station": 96.7,
+        "duration": 5
     },
-    'nba': {
-        'station': 100.5,
-        'duration': 3.5
+    "nba": {
+        "station": 100.5,
+        "duration": 3.5
     },
-    'studio_m': {
-        'station': 105.5,
-        'duration': 1
+    "studio_m": {
+        "station": 105.5,
+        "duration": 1
     },
-    'delay': {
-        'station': 101.5,
-        'duration': .01
+    "delay": {
+        "station": 101.5,
+        "duration": .01
     }
 }
