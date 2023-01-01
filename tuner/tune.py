@@ -13,7 +13,7 @@ import tempfile
 import time
 import traceback
 
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from datetime import timezone
 from subprocess import run, Popen, PIPE, CalledProcessError, check_call, check_output, DEVNULL
 from io import StringIO
@@ -34,6 +34,10 @@ env = Environment(
 )
 
 pcapture, pencode = None, None
+
+class ExitCase(Exception):
+    "Raised when we want to exit from this script"
+    pass
 
 def killall(procs=None):
     """
@@ -58,36 +62,13 @@ def killall(procs=None):
         except:
             pass
 
-tuner = {
-    'nfl': {
-        'station': 101.5,
-        'duration': 4
-    },
-    'ncaab': {
-        'station': 101.5,
-        'duration': 4
-    },
-    'ncaaf': {
-        'station': 101.5,
-        'duration': 5
-    },
-    'mlb': {
-        'station': 96.7,
-        'duration': 5
-    },
-    'nba': {
-        'station': 100.5,
-        'duration': 3.5
-    },
-    'studio_m': {
-        'station': 105.5,
-        'duration': 1
-    },
-    'delay': {
-        'station': 101.5,
-        'duration': .01
-    }
-}
+tuner = {}
+with open('tuner.json') as jsfp:
+    tuner = json.load(jsfp)
+
+fscfg = {}
+with open('fscfg.json') as jsfp:
+    fscfg = json.load(jsfp)
 
 gains = {}
 squelches = {}
@@ -207,6 +188,18 @@ def render_game_info(data):
 
     return rendered
 
+def get_output_fn(gameinfo):
+    home_team = gameinfo.get('home', 'manual')
+    away_team = gameinfo.get('away', 'manual')
+    date_sched = gameinfo.get('scheduled_at', datetime.datetime.now().strftime("%Y-%m-%d")).split().pop()
+    output_dir = fscfg.get('output_dir', '/tmp')
+    return "{output_dir}/{away}-vs-{home}-{sport}-{date}.mp3".format(
+        away=away_team,
+        home=home_team,
+        date=date_sched,
+        sport=gameinfo.get('sport', 'unknown')
+    ).replace(' ', '-')
+
 def merge(gameinfo, station):
     """
     Merge all of the files in the current m3u8 into a single archive after recording
@@ -233,12 +226,7 @@ def merge(gameinfo, station):
         home_team = gameinfo.get('home', 'manual')
         away_team = gameinfo.get('away', 'manual')
         date_sched = gameinfo.get('scheduled_at', datetime.datetime.now().strftime("%Y-%m-%d")).split().pop()
-        output_file = "/mnt/megapenthes/Badgers/{away}-vs-{home}-{sport}-{date}.mp3".format(
-            away=away_team,
-            home=home_team,
-            date=date_sched,
-            sport=gameinfo.get('sport', 'unknown')
-        ).replace(' ', '-')
+        output_file = get_output_fn(gameinfo)
         if os.path.isfile(output_file):
             os.remove(output_file)
         encode = ['/usr/bin/ffmpeg', '-f', 'concat', '-safe', '0', '-i', tmp.name, '-c', 'copy', output_file]
@@ -299,7 +287,7 @@ def render_html(config):
             outfp.flush()
     check_call(['make', 'deploy'],stdout=DEVNULL,stderr=DEVNULL)
 
-def schedule_tune(config, now=False):
+def schedule_tune(config, exit_queue, now=False):
     """
     Tune into the desired station at the desired time, based on the config file.
 
@@ -361,10 +349,12 @@ def schedule_tune(config, now=False):
     except:
         import traceback ; traceback.print_exc()
     finally:
-        killall(procs=[pcapture,pencode])            
+        killall(procs=[pcapture,pencode])
         if normal_exit:
             merge(gameinfo_json, station)
     print("Finished tuning and saving recording")
+    exit_queue.basic_publish(exchange='', routing_key="schedule", body="exit")
+    print("Published exit message")
     return normal_exit
 
 sched_procs = {}
@@ -387,6 +377,16 @@ def dequeue(now=False):
             time.sleep(5)
 
     def sched_process(ch, method, properties, body):
+        if body.decode('utf-8') == 'exit':
+            for id, scheduled in sched_procs.items():
+                try:
+                    print(f"Terminating proc {id}")
+                    sched_procs[id]['proc'].kill()
+                except:
+                    traceback.print_exc()
+            channel.stop_consuming()
+            raise ExitCase("Received exit signal")
+
         config = json.loads(body)
         existing = {}
         dead = []
@@ -439,8 +439,13 @@ def dequeue(now=False):
             if not sched_procs[proc_id]['proc'].is_alive():
                 print("Removing finished process {}".format(proc['proc']))
                 del sched_procs[proc_id]
-            
-        future_tune = Process(target=schedule_tune, args=(config,), kwargs={'now': now})
+
+        output_file = get_output_fn(config)
+        if os.path.isfile(output_file):
+            print(f"{output_file} already exists, not tuning")
+            return
+
+        future_tune = Process(target=schedule_tune, args=(config, ch,), kwargs={'now': now}, daemon=True)
         future_tune.start()
         sched_procs[config['id']] = {
             'config': config,
@@ -451,7 +456,7 @@ def dequeue(now=False):
             "\n".join(["{}: {} {}".format(
                 i,x['config']['day'] + ' ' + x['config']['time'], x['config']['odds']) for i,x in enumerate(sched_procs.values()) if x['proc'].is_alive()])
         ))
-        
+
     channel.basic_consume(queue='schedule', on_message_callback=sched_process, auto_ack=True)
 
     if now:
@@ -483,4 +488,7 @@ if __name__ == '__main__':
                 "odds": tuner.get(args.sport, {}).get('station')
             })
     else:
-        dequeue(now=args.now)
+        try:
+            dequeue(now=args.now)
+        except ExitCase as exc:
+            pass

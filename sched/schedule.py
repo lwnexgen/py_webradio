@@ -286,7 +286,6 @@ def rmq_connect():
         return rmq, channel
     return None, None
 
-
 def schedule(skipmq=False, show_time_only=False):
     """
     Scrape all upcoming events for my favorite teams over the next couple of days
