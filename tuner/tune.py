@@ -189,16 +189,12 @@ def render_game_info(data):
     return rendered
 
 def get_output_fn(gameinfo):
-    home_team = gameinfo.get('home', 'manual')
-    away_team = gameinfo.get('away', 'manual')
-    date_sched = gameinfo.get('scheduled_at', datetime.datetime.now().strftime("%Y-%m-%d")).split().pop()
+    home = gameinfo.get('home', 'manual')
+    away = gameinfo.get('away', 'manual')
+    date = gameinfo.get('scheduled_at', datetime.datetime.now().strftime("%Y-%m-%d")).split().pop()
+    sport = gameinfo.get('sport', 'manual').replace(' ', '-')
     output_dir = fscfg.get('output_dir', '/tmp')
-    return "{output_dir}/{away}-vs-{home}-{sport}-{date}.mp3".format(
-        away=away_team,
-        home=home_team,
-        date=date_sched,
-        sport=gameinfo.get('sport', 'unknown')
-    ).replace(' ', '-')
+    return f"{output_dir}/{away}-vs-{home}-{sport}-{date}.mp3"
 
 def merge(gameinfo, station):
     """
