@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
     volumes:
       - webdata:/var/www/html:rw
-      - ***REMOVED***/Badgers:***REMOVED***/Badgers:rw
+      - /mnt/megapenthes/Badgers:/mnt/megapenthes/Badgers:rw
       - ./tuner/tune.py:/tmp/pysched/tune.py:ro
       - CODEDIR/py_webradio/status.log:/tmp/pysched/status.log:rw
       - CODEDIR/py_webradio/merge.log:/tmp/pysched/merge.log:rw

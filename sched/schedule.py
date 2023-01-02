@@ -135,9 +135,9 @@ def scrape_matchup(url, rel_url, sport, favorite, headers):
         except:
             home_odds, away_odds = '?', '?'
     except Exception as exc:
-        print("Unable to parse {}\n{}".format(matchup_url, exc))
-        # traceback.print_exc()
-        # sys.exit(1)
+        with open("schedule_skip.log", "a") as sc:
+            sc.write(f"Unable to parse {matchup_url}\n{exc}\n")
+            sc.flush()
         return None
 
     hl = hashlib.md5()
