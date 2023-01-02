@@ -1,6 +1,6 @@
 FROM fedora:34 AS softfm
 
-RUN dnf -y clean all && dnf -y install \
+RUN dnf -y install \
 	alsa-lib \
 	alsa-lib-devel \
 	cmake \

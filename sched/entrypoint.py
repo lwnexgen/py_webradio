@@ -22,7 +22,9 @@ if __name__ == '__main__':
     
     while not args:
         schedule()
-        time.sleep(srand.randint(300, 1200))
+        sleep_secs = srand.randint(30, 300)
+        print(f"Sleeping for {sleep_secs}")
+        time.sleep(sleep_secs)
 
     print("Executing following: {}".format(args))
     os.execv(args[0], args)
