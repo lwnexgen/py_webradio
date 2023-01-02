@@ -1,6 +1,6 @@
 FROM fedora:34 AS softfm
 
-RUN dnf -y clean all && dnf -y install \
+RUN dnf -y install \
 	alsa-lib \
 	alsa-lib-devel \
 	cmake \
@@ -80,6 +80,8 @@ RUN mkdir -p js
 RUN mkdir -p css
 RUN mkdir -p data
 
+COPY tuner.json ./
+COPY fscfg.json ./
 COPY tune.py ./
 
 ENTRYPOINT ["/tmp/pysched/tune.py"]

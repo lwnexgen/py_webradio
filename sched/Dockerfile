@@ -6,6 +6,8 @@ RUN dnf -y install /usr/sbin/atd
 RUN dnf -y install make
 RUN dnf -y install python-virtualenv python2
 
+USER 1000:1000
+
 WORKDIR /tmp
 
 COPY entrypoint.py schedule.py __init__.py ./

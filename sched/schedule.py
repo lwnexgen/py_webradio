@@ -126,7 +126,7 @@ def scrape_matchup(url, rel_url, sport, favorite, headers):
 
         if how_long < 0 and math.fabs(how_long) > 4 * 3600:
             with open('schedule_skip.log', 'a') as sc:
-                sc.write("Not scheduling a game ({} @ {}) more than 4hrs old".format(away, home))
+                sc.write(f"Not scheduling a game ({away} @ {home}) more than 4hrs old\n")
                 sc.flush()
             return None
 
@@ -135,9 +135,9 @@ def scrape_matchup(url, rel_url, sport, favorite, headers):
         except:
             home_odds, away_odds = '?', '?'
     except Exception as exc:
-        print("Unable to parse {}\n{}".format(matchup_url, exc))
-        # traceback.print_exc()
-        # sys.exit(1)
+        with open("schedule_skip.log", "a") as sc:
+            sc.write(f"Unable to parse {matchup_url}\n{exc}\n")
+            sc.flush()
         return None
 
     hl = hashlib.md5()
@@ -262,7 +262,11 @@ def queue(config, rmq, queuename='schedule'):
     """
     Add a queue object to rabbitmq
     """
-    rmq.basic_publish(exchange='', routing_key=queuename, body=json.dumps(config))
+    rmq.basic_publish(
+        exchange='',
+        routing_key=queuename,
+        body=json.dumps(config)
+    )
     print("Queued: {} [{}]".format(config.get('odds'), config.get('id')))
 
 def rmq_connect():
@@ -285,7 +289,6 @@ def rmq_connect():
         print("Connection sucessful")
         return rmq, channel
     return None, None
-
 
 def schedule(skipmq=False, show_time_only=False):
     """
