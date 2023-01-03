@@ -191,7 +191,7 @@ def render_game_info(data):
 def get_output_fn(gameinfo):
     home = gameinfo.get('home', 'manual')
     away = gameinfo.get('away', 'manual')
-    date = gameinfo.get('scheduled_at', datetime.datetime.now().strftime("%Y-%m-%d")).split().pop()
+    date = arrow.get(gameinfo.get('scheduled_cst', str(datetime.datetime.now().isoformat()))).datetime.strftime('%Y-%m-%d')
     sport = gameinfo.get('sport', 'manual').replace(' ', '-')
     output_dir = fscfg.get('output_dir', '/tmp')
     return f"{output_dir}/{away}-vs-{home}-{sport}-{date}.mp3"
@@ -429,6 +429,12 @@ def dequeue(now=False):
                     status.write(f'{date}: {message}\n')
                 if os.environ.get('DEBUG'):
                     print(message)
+
+                output_file = get_output_fn(existing['config'])
+                if os.path.isfile(output_file):
+                    print(f"{output_file} already exists, killing existing process")
+                    sched_procs[existing['config']['id']]['proc'].kill()
+                    del sched_procs[existing['config']['id']]
                 return
 
         for proc_id in list(sched_procs.keys()):
@@ -438,10 +444,12 @@ def dequeue(now=False):
 
         output_file = get_output_fn(config)
         if os.path.isfile(output_file):
-            print(f"{output_file} already exists, not tuning")
+            with open('status.log', 'a') as status:
+                date = datetime.datetime.now().isoformat()
+                status.write(f'{date}: {output_file} already exists, not tuning\n')
             return
 
-        future_tune = Process(target=schedule_tune, args=(config, ch,), kwargs={'now': now}, daemon=True)
+        future_tune = Process(target=schedule_tune, args=(config, ch,), kwargs={'now': now}, daemon=True, name=config.get('odds', 'generic-' + config.get('day')))
         future_tune.start()
         sched_procs[config['id']] = {
             'config': config,
@@ -449,8 +457,8 @@ def dequeue(now=False):
         }
 
         print("Pending recordings:\n{}".format(
-            "\n".join(["{}: {} {}".format(
-                i,x['config']['day'] + ' ' + x['config']['time'], x['config']['odds']) for i,x in enumerate(sched_procs.values()) if x['proc'].is_alive()])
+            "\n".join(["{}: {} {} ({})".format(
+                i,x['config']['day'] + ' ' + x['config']['time'], x['config']['odds'], get_output_fn(x['config'])) for i,x in enumerate(sched_procs.values()) if x['proc'].is_alive()])
         ))
 
     channel.basic_consume(queue='schedule', on_message_callback=sched_process, auto_ack=True)
