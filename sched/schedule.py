@@ -37,10 +37,6 @@ TEAM_MAP = {
     }
 }
 
-# "ncaaf":
-# "nfl": "https://www.vegasinsider.com/nfl/teams/{}/",
-# "mlb": "https://www.vegasinsider.com/mlb/odds/las-vegas/"
-
 SOURCES = {
     "ncaab": "https://www.actionnetwork.com/ncaab/odds/{}",
     "ncaaf": "https://www.actionnetwork.com/ncaaf/odds/{}",
@@ -55,41 +51,6 @@ favorites = {
     'nba': ['milwaukee-bucks'],
     'mlb': ['milwaukee-brewers']
 }
-
-tuner = {
-    'nfl': {
-        'station': 101.5,
-        'duration': 4
-    },
-    'ncaab': {
-        'station': 101.5,
-        'duration': 4
-    },
-    'ncaaf': {
-        'station': 101.5,
-        'duration': 5
-    },
-    'mlb': {
-        'station': 96.7,
-        'duration': 5
-    },
-    'nba': {
-        'station': 100.5,
-        'duration': 3.5
-    },
-    'studio_m': {
-        'station': 105.5,
-        'duration': 1
-    }
-}
-
-def is_float(inp):
-    try:
-        float(inp)
-        return True
-    except:
-        pass
-    return False
 
 def parse_odds(soup):
     home_spread = "?"
@@ -214,49 +175,6 @@ def scrape():
     for sport, url in SOURCES.items():
         matchups += scrape_sport(sport, url, favorites.get(sport, []))
     return matchups
-
-def runcommand(command, simulate=False, silent=False):
-    """
-    Thin wrapper around subprocess for debugging commands
-    """
-    if not silent:
-        print(" ".join([quote(x) for x in command]))
-    if simulate:
-        return
-    return subprocess.check_output(command)
-
-def _ex_q(scriptdir):
-    """
-    Grab sorted list of existing queued scripts
-    """
-    if not os.path.exists(scriptdir):
-        os.makedirs(scriptdir)
-        return []
-    return sorted(glob.glob(os.path.join(scriptdir, "*")))
-
-def _write_cat_cfg(fn, config):
-    """
-    Write a script that we can hand off to at(1) for scheduling
-    """
-    message = """#!/bin/sh
-cat > {fn} << 'EOF'
-{cfg}
-EOF
-
-pushd ../../
-pkill -9 -f softfm
-sleep 3
-pysched/bin/python tune.py {station} --gameinfo={fn} --duration={duration}hr
-popd
-""".format(
-    fn="/tmp/{}.json".format(os.path.basename(fn)),
-    cfg=json.dumps(config, indent=2, sort_keys=True),
-    station=tuner.get(config['sport'])['station'],
-    duration=tuner.get(config['sport'])['duration'])
-
-    with open(fn, 'w') as script:
-        script.write(message)
-        script.flush()
 
 def queue(config, rmq, queuename='schedule'):
     """

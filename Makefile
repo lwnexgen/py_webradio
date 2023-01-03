@@ -31,14 +31,14 @@ demo: stop disk
 	echo "FAKETIME_DONT_RESET=1" >> tuner/tuner-env.env
 	cat tuner/tuner-env.env
 	docker-compose up --detach
-	sleep 10 && docker-compose restart server
+	./wait-for-certbot.sh && docker-compose restart server
 	docker-compose logs -f letsencrypt server tuner
 
 # start in "schedule" mode
 test: stop disk
 	cat sched-env >> tuner/tuner-env.env
 	docker-compose up --detach
-	sleep 10 && docker-compose restart server
+	./wait-for-certbot.sh && docker-compose restart server && docker-compose restart server
 	docker-compose logs -f letsencrypt server tuner
 
 stop:
