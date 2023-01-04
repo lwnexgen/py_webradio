@@ -227,7 +227,6 @@ def schedule(skipmq=False, show_time_only=False):
             if show_time_only:
                 offset_time = (arrow.get(matchup['scheduled']).datetime - datetime.timedelta(minutes=10, seconds=30)).strftime('%Y-%m-%d %H:%M:%S')
                 print(f"FAKETIME=@{offset_time}")
-                break
             else:
                 print(matchup['odds'])
     if rmq:
