@@ -33,3 +33,7 @@ It creates an m3u8/mp3 stream out of data from an [RTL-SDR](https://www.rtl-sdr.
 1. Wait 30s for the stream to become available at your domain
 
 Note: a letsencrypt.org cert will be requested and provisioned for you based on the DOMAIN and EMAIL you specify in 'domain-info' - this will be stored in the 'certs' volume and updated by the letsencrypt service on cluster startup
+
+# Architecture
+
+See [DESIGN.md](DESIGN.md)
