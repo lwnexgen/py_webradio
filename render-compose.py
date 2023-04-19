@@ -2,11 +2,11 @@
 # This silly file just replaces sensitive values in docker-compose.yml - should really be jinja
 import subprocess
 import json
-import urlparse
+from urllib.parse import urlparse
 
 def main():
     config = json.load(open('tuner/config.json'))
-    local_ip = urlparse.urlparse(config['local_address']).netloc.split(':')[0]
+    local_ip = urlparse(config['local_address']).netloc.split(':')[0]
     code_dir = config['code_dir']
     base_dir = config['base_dir']
     cmd = ["sed",

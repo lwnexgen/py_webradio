@@ -37,10 +37,12 @@ TEAM_MAP = {
     }
 }
 
+# "nba": "https://www.actionnetwork.com/nba/odds/{}"
 SOURCES = {
     "ncaab": "https://www.actionnetwork.com/ncaab/odds/{}",
     "ncaaf": "https://www.actionnetwork.com/ncaaf/odds/{}",
     "nfl": "https://www.actionnetwork.com/nfl/odds/{}",
+    "mlb": "https://www.actionnetwork.com/mlb/odds/{}",
     "nba": "https://www.actionnetwork.com/nba/odds/{}"
 }
 

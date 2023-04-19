@@ -134,14 +134,18 @@ def tune(station, capture_command, logfile='/dev/null'):
         pass
 
     try:
-        pcap = Popen(capture_command, stdout=PIPE, stderr=DEVNULL)
+        print(json.dumps(capture_command))
+        # pcap = Popen(capture_command, stdout=PIPE, stderr=DEVNULL)
+        pcap = Popen(capture_command, stdout=PIPE)
     except:
         print("Error running capture command")
         traceback.print_exc()
         raise
 
     try:
-        penc = Popen(encode_command, stdin=pcap.stdout, stderr=DEVNULL)
+        print(json.dumps(encode_command))
+        # penc = Popen(encode_command, stdin=pcap.stdout, stderr=DEVNULL)
+        penc = Popen(encode_command, stdin=pcap.stdout)
     except:
         print("Error running encode command")
         traceback.print_exc()
@@ -258,7 +262,6 @@ def render_html(config):
     if not address_config.get('local_address') or not address_config.get('remote_address'):
         log.info("Must define local_address and remote_address in --config file")
         parser.print_usage()
-        sys.exit(1)
 
     for output, templatename in rendermap.items():
         if os.path.exists(output):
@@ -348,6 +351,8 @@ def schedule_tune(config, exit_queue, now=False):
         killall(procs=[pcapture,pencode])
         if normal_exit:
             merge(gameinfo_json, station)
+    if not exit_queue:
+        return normal_exit
     print("Finished tuning and saving recording")
     exit_queue.basic_publish(exchange='', routing_key="schedule", body="exit")
     print("Published exit message")
@@ -490,7 +495,7 @@ if __name__ == '__main__':
                 "scheduled": (arrow.utcnow().naive + datetime.timedelta(seconds=5)).isoformat(),
                 "scheduled_cst": (arrow.utcnow().to('US/Central').naive + datetime.timedelta(seconds=5)).isoformat(),
                 "odds": tuner.get(args.sport, {}).get('station')
-            })
+            }, None)
     else:
         try:
             dequeue(now=args.now)
