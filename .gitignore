@@ -10,4 +10,8 @@ tuner-env.env
 live-env
 docker-compose.yml
 server/tuner-conf.d/.htpasswd
-logs/*.log
+logs/*.log*
+le-logs/*.log*
+*.log
+*/build
+*/*-env*

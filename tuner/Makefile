@@ -1,5 +1,5 @@
 build:
-	docker build -t pywebtuner:latest .
+	docker build -t pywebtuner:latest . --progress=plain
 	touch build
 
 live: build

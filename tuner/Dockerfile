@@ -1,29 +1,6 @@
 FROM fedora:34 AS softfm
 
-RUN dnf -y install \
-	alsa-lib \
-	alsa-lib-devel \
-	cmake \
-	gcc \
-	gcc-c++ \
-	git \
-	libsndfile \
-	libsndfile-devel \
-	libsndfile-utils \
-	libusb \
-	libusb-devel \
-	make \
-	numpy \
-	pkgconf \
-	portaudio \
-	portaudio-devel \
-	python2 \
-	python3 \
-	python3-virtualenv \
-	soxr \
-	soxr-devel \
-	volk \
-	volk-devel
+RUN dnf -y install alsa-lib alsa-lib-devel cmake gcc gcc-c++ git libsndfile libsndfile-devel libsndfile-utils libusb libusb-devel make numpy pkgconf portaudio portaudio-devel python2 python3 python3-virtualenv soxr soxr-devel volk volk-devel
 
 # Build RTL-SDR from source
 RUN git clone --single-branch --branch v0.5.4 git://git.osmocom.org/rtl-sdr.git /tmp/rtl-sdr

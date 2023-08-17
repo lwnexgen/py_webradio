@@ -17,6 +17,7 @@ services:
       - ./sched/schedule.py:/tmp/schedule.py
       - ./sched/tuner.json:/tmp/tuner.json
       - ./sched/fscfg.json:/tmp/fscfg.json
+      - /var/run/docker.sock:/var/run/docker.sock:rw
       - CODEDIR/py_webradio/schedule_skip.log:/tmp/schedule_skip.log:rw
     logging:
       options:
@@ -40,6 +41,7 @@ services:
         max-file: "10"
     depends_on:
       - rmq
+      - sched
     env_file:
       - tuner/tuner-env.env
   navidrome:

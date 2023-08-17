@@ -14,6 +14,7 @@ import arrow
 import pika
 
 from pipes import quote
+from urllib.parse import urlparse, urljoin
 
 import argparse
 import datetime
@@ -38,91 +39,117 @@ TEAM_MAP = {
 }
 
 SOURCES = {
-    "ncaab": "https://www.actionnetwork.com/ncaab/odds/{}",
-    "ncaaf": "https://www.actionnetwork.com/ncaaf/odds/{}",
-    "nfl": "https://www.actionnetwork.com/nfl/odds/{}",
-    "nba": "https://www.actionnetwork.com/nba/odds/{}"
+    "mlb": "https://www.sportsline.com/mlb/picks/",
+    "ncaaf": "https://www.sportsline.com/college-football/picks/",
+    "nfl": "https://www.sportsline.com/nfl/picks/",
+    "ncaab": "https://www.sportsline.com/college-basketball/picks/",
+    "nba": "https://www.sportsline.com/nba/picks/"
+}
+
+preferred_odds = {
+    "mlb": "moneyLine",
+    "ncaaf": "spread",
+    "nba": "spread",
+    "nfl": "spread",
+    "ncaab": "spread"
 }
 
 favorites = {
-    'nfl': ['Packers'],
-    'ncaaf': ['Wisconsin'],
-    'ncaab': ['Wisconsin'],
-    'nba': ['milwaukee-bucks'],
-    'mlb': ['milwaukee-brewers']
+    'nfl': ['Packers-gb'],
+    'ncaaf': ['Wisconsin-WIS'],
+    'ncaab': ['Wisconsin-WIS'],
+    'nba': ['milwaukee'],
+    'mlb': ['milwaukee-mil']
 }
 
-def parse_odds(soup):
-    home_spread = "?"
-    away_spread = "?"
+seasons = {
+    "mlb": "summer",
+    "nfl": "winter",
+    "ncaab": "winter",
+    "nba": "winter",
+    "ncaaf": "winter"
+}
 
+
+leagues = {
+    "ncaaf": 2,
+    "ncaab": 116,
+    "mlb": 1,
+    "nfl": 1
+}
+
+def scrape_matchup(matchup_blob, headers, sport):
     try:
-        options = [x for x in soup.findAll('thead') if 'Spread' in x.text][0]
-        away_spread = options.parent.findAll('div', { 'data-testid': 'book-cell__odds' })[0].findAll('span')[0].text
-        home_spread = options.parent.findAll('div', { 'data-testid': 'book-cell__odds' })[3].findAll('span')[0].text
+        datestr = matchup_blob.get('date')['start']
     except:
-        pass
+        datestr = matchup_blob.get('date')
 
-    return home_spread, away_spread
+    scheduled = arrow.get(datestr).to('UTC')
+    scheduled_cst = arrow.get(datestr).to('America/Chicago')
 
-def scrape_matchup(url, rel_url, sport, favorite, headers):
-    matchup_url = url + '/../../..' + rel_url
+    matchup_blob["teams"] = {
+        "home": {
+            "name": matchup_blob["home"]
+        },
+
+        "away": {
+            "name": matchup_blob["away"]
+        }
+    }
+    
+    home = matchup_blob["teams"]["home"]["name"]
+
     try:
-        src = requests.get(matchup_url, headers=headers).text
+        away = matchup_blob["teams"]["away"]["name"]
     except:
-        print("Error scraping matchup url {}, retrying in 30s".format(matchup_url))
-        time.sleep(30)
-        return scrape_matchup(url, rel_url)
+        away = matchup_blob["teams"]["visitors"]["name"]
+    
+    odds = matchup_blob.get('odds')
 
-    try:
-        soup = Soup(src, 'html.parser')
-        datestr = soup.findAll('div', {'class': 'game-odds__date-container'})[0].text
-        scheduled_utc = arrow.get(datestr.replace('a.m.', 'AM ').replace('p.m.', 'PM ') + ' UTC', 'dddd h:mm A MMMM D, YYYY')
-        scheduled_est = scheduled_utc.to('US/Eastern')
-        teams = soup.findAll('h1', {'class': 'game-odds__title'})[0].text.replace(' Odds', '')
-        away, home = teams.split(' vs. ', 1)
+    day = scheduled_cst.format("ddd MMM Do YYYY")
+    time = scheduled_cst.format('h:mm A')
 
-        now_utc = arrow.utcnow()
-        how_long = scheduled_utc.timestamp - now_utc.timestamp
-
-        if how_long < 0 and math.fabs(how_long) > 4 * 3600:
-            with open('schedule_skip.log', 'a') as sc:
-                sc.write(f"Not scheduling a game ({away} @ {home}) more than 4hrs old\n")
-                sc.flush()
-            return None
-
-        try:
-            home_odds, away_odds = parse_odds(soup)
-        except:
-            home_odds, away_odds = '?', '?'
-    except Exception as exc:
-        with open("schedule_skip.log", "a") as sc:
-            sc.write(f"Unable to parse {matchup_url}\n{exc}\n")
-            sc.flush()
-        return None
-
+    nice_away = away.replace('.','')
+    nice_home = home.replace('.','')
+    date_day = scheduled_cst.format('YYYY-MM-DD-hh-mm-A')
+    output_filename = "-".join(f"{nice_away}-vs-{nice_home}-{sport}-{date_day}".split())
+    
     hl = hashlib.md5()
-    hl.update((home + away + sport).encode('utf-8'))
-    scheduled = scheduled_est.to('UTC')
-    scheduled_cst = scheduled_est.to('US/Central')
+    hl.update((home + away + sport + day).encode('utf-8'))
+    
     matchup = {
         "sport": sport,
         "raw_date": datestr,
         "scheduled": scheduled.isoformat(),
         "scheduled_cst": scheduled_cst.isoformat(),
-        "scheduled_at": scheduled.shift(minutes=-10).strftime("%I:%M %p %Y-%m-%d"),
+        "scheduled_at": scheduled_cst.shift(minutes=-10).strftime("%I:%M %p %Y-%m-%d"),
         "scheduled_sort": scheduled_cst.shift(minutes=-10).strftime("%Y-%m-%d %I:%M %p"),
-        "day": scheduled_cst.format("ddd MMM Do YYYY"),
-        "time": scheduled_cst.format('h:mm A'),
+        "day": day,
+        "time": time,
         "away": away,
         "home": home,
         "odds": "{} ({}) @ {} ({})".format(
-            away, away_odds,
-            home, home_odds
+            away, odds.get('away'),
+            home, odds.get('home')
         ),
+        "output_filename": output_filename,
         "id": hl.hexdigest()
     }
+
+    print("Queuing {odds} {day} {time}".format(
+        odds=matchup['odds'],
+        day=matchup['day'],
+        time=matchup['time']
+    ))
+
     return matchup
+
+def puppet_scrape(url):
+    script = ""
+    with open('sportsline.js') as sp:
+        script = sp.read().replace('SCRAPE_URL', url)
+    puppet_cmd = ['docker', 'run', '--dns', '192.168.0.102', '-i', '--init', '--cap-add=SYS_ADMIN', '--rm', 'ghcr.io/puppeteer/puppeteer:latest', 'node', '-e', script]
+    return subprocess.check_output(puppet_cmd)
 
 def scrape_sport_favorite(sport, url, favorite):
     url = url.format(TEAM_MAP.get(favorite, favorite))
@@ -130,28 +157,82 @@ def scrape_sport_favorite(sport, url, favorite):
     hl = hashlib.md5()
     hl.update(str(datetime.datetime.now()).encode('utf-8'))
 
+    host = urlparse(url).netloc
+
     headers = {
         'User-Agent': hl.hexdigest()
     }
 
-    try:
-        src = requests.get(url, headers=headers).text
-    except:
-        print("Error scraping {}, retrying in 30s".format(url))
-        time.sleep(30)
-        return scrape_sport(sport, url, favorite)
+    data = {
+        "errors": None
+    }
 
-    soup = Soup(src, 'html.parser')
+    try:
+        src = puppet_scrape(url)
+        soup = Soup(src, features="html.parser")
+        data["soup"] = soup
+        data["response"] = [ x for x in soup.find_all('a') if 'Matchup Analysis' in x.text ]
+    except:
+        data['errors'] = traceback.format_exc()
+        
+    if data['errors']:
+        print(json.dumps(data, indent=2))
+        return []
+
     matchups = []
-    for matchup in [x for x in soup.findAll('a', {'class': 'next-game__details-link'})]:
-        matchup_link = matchup.get('href')
-        scraped = scrape_matchup(url, matchup_link, sport, favorite, headers)
-        if scraped is not None:
-            matchups.append(scraped)
-            break
+    seen = set()
+    for _matchup in sorted(x.get('href') for x in data['response']):        
+        fav_match = False
+        for chunk in favorite.split('-'):
+            if len(chunk) == 1:
+                raise f"{chunk} is only 1 character long!"
+            if chunk.lower() in _matchup.lower():
+                fav_match = True
+        if not fav_match:
+            with open('/tmp/schedule_skip.log', 'a') as sk:
+                sk.write(f"{_matchup} does not look like it involves {favorite}\n")
+                sk.flush()
+            continue
+        print(f"{_matchup} looks like it involves {favorite}")
+        matchup_soup = Soup(requests.get(urljoin(url, _matchup)).text, features="html.parser")
+        
+        try:
+            json_info = json.loads(matchup_soup.findAll('script', {'type':'application/json'})[0].string).get('props', {}).get('pageProps',{}).get('data', {}).get('gameByAbbr')
+            date = arrow.get(json_info.get('scheduledTime')).to('America/Chicago')
+            home = f"{json_info['homeTeam']['location']} {json_info['homeTeam']['nickName']}"
+            away = f"{json_info['awayTeam']['location']} {json_info['awayTeam']['nickName']}"            
+        except:
+            print("Unable to grab JSON info off of webpage")
+            continue
+        
+        odds = {
+            "home": "pk",
+            "away": "pk"
+        }
+
+        try:
+            preferred_line = preferred_odds.get(sport)
+            if preferred_line == 'moneyLine':
+                key = 'outcomeOdds'
+            else:
+                key = 'value'
+            odds['home'] = json_info['odds'][preferred_line]['home'][key]
+            odds['away'] = json_info['odds'][preferred_line]['away'][key]
+        except:
+            pass
+        
+        matchup = {
+            "date": date.isoformat(),
+            "home": home,
+            "away": away,
+            "odds": odds
+        }
+
+        matchups.append(scrape_matchup(matchup, headers, sport))
+        
     return matchups
 
-def scrape_sport(sport, url, favorites):
+def scrape_sport(sport, url, favorite_list):
     """
     Scape the given sport for date/time and opponent info
 
@@ -163,7 +244,7 @@ def scrape_sport(sport, url, favorites):
     if not url:
         return []
     matchups = []
-    for favorite in favorites:
+    for favorite in favorite_list:
         matchups += scrape_sport_favorite(sport, url, favorite)
     return matchups
 
@@ -173,7 +254,9 @@ def scrape():
     """
     matchups = []
     for sport, url in SOURCES.items():
-        matchups += scrape_sport(sport, url, favorites.get(sport, []))
+        favorite_list = favorites.get(sport, [])
+        print(f"Scraping {sport} from {url} using {favorite_list}")
+        matchups += scrape_sport(sport, url, favorite_list)
     return matchups
 
 def queue(config, rmq, queuename='schedule'):
@@ -225,7 +308,8 @@ def schedule(skipmq=False, show_time_only=False):
             queue(matchup, channel)
         else:
             if show_time_only:
-                offset_time = (arrow.get(matchup['scheduled']).datetime - datetime.timedelta(minutes=10, seconds=30)).strftime('%Y-%m-%d %H:%M:%S')
+                offset_time = (
+                    arrow.get(matchup['scheduled']).datetime - datetime.timedelta(minutes=10, seconds=30)).strftime('%Y-%m-%d %H:%M:%S')
                 print(f"FAKETIME=@{offset_time}")
             else:
                 print(matchup['odds'])
@@ -234,12 +318,18 @@ def schedule(skipmq=False, show_time_only=False):
         rmq.close()
 
 if __name__ == "__main__":
+    os.chdir(os.path.dirname(os.path.abspath(sys.argv[0])))
+    
     parser = argparse.ArgumentParser("Schedule events based on published odds")
     parser.add_argument('--time', action='store_true', help='Show time of events only')
     args = parser.parse_args()
-
+    
     while True:
-        schedule(skipmq=True, show_time_only=args.time)
-        time.sleep(5)
-        if args.time:
-            break
+        try:
+            schedule(skipmq=True, show_time_only=args.time)
+            if args.time:
+                break
+            time.sleep(1000)
+        except:
+            traceback.print_exc()
+            time.sleep(100000)

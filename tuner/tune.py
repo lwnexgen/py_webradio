@@ -33,6 +33,14 @@ env = Environment(
     loader=FileSystemLoader('templates')
 )
 
+favorites = {
+    'nfl': ['Packers'],
+    'ncaaf': ['Wisconsin'],
+    'ncaab': ['Wisconsin'],
+    'nba': ['milwaukee'],
+    'mlb': ['milwaukee']
+}
+
 pcapture, pencode = None, None
 
 class ExitCase(Exception):
@@ -134,14 +142,18 @@ def tune(station, capture_command, logfile='/dev/null'):
         pass
 
     try:
-        pcap = Popen(capture_command, stdout=PIPE, stderr=DEVNULL)
+        print(json.dumps(capture_command))
+        # pcap = Popen(capture_command, stdout=PIPE, stderr=DEVNULL)
+        pcap = Popen(capture_command, stdout=PIPE)
     except:
         print("Error running capture command")
         traceback.print_exc()
         raise
 
     try:
-        penc = Popen(encode_command, stdin=pcap.stdout, stderr=DEVNULL)
+        print(json.dumps(encode_command))
+        # penc = Popen(encode_command, stdin=pcap.stdout, stderr=DEVNULL)
+        penc = Popen(encode_command, stdin=pcap.stdout)
     except:
         print("Error running encode command")
         traceback.print_exc()
@@ -188,13 +200,9 @@ def render_game_info(data):
 
     return rendered
 
-def get_output_fn(gameinfo):
-    home = gameinfo.get('home', 'manual')
-    away = gameinfo.get('away', 'manual')
-    date = arrow.get(gameinfo.get('scheduled_cst', str(datetime.datetime.now().isoformat()))).datetime.strftime('%Y-%m-%d')
-    sport = gameinfo.get('sport', 'manual').replace(' ', '-')
+def get_output_fn(output_filename):
     output_dir = fscfg.get('output_dir', '/tmp')
-    return f"{output_dir}/{away}-vs-{home}-{sport}-{date}.mp3"
+    return f"{output_dir}/{output_filename}.mp3"
 
 def merge(gameinfo, station):
     """
@@ -219,10 +227,7 @@ def merge(gameinfo, station):
         tmp.write(output)
         os.chown(tmp.name, 1000, 1000)
         tmp.flush()
-        home_team = gameinfo.get('home', 'manual')
-        away_team = gameinfo.get('away', 'manual')
-        date_sched = gameinfo.get('scheduled_at', datetime.datetime.now().strftime("%Y-%m-%d")).split().pop()
-        output_file = get_output_fn(gameinfo)
+        output_file = get_output_fn(gameinfo.get('output_filename'))
         if os.path.isfile(output_file):
             os.remove(output_file)
         encode = ['/usr/bin/ffmpeg', '-f', 'concat', '-safe', '0', '-i', tmp.name, '-c', 'copy', output_file]
@@ -249,7 +254,8 @@ def render_html(config):
         'tuner.html': 'tuner.html.jinja',
         'tuner_local.html': 'tuner.html.jinja',
         'js/custom.js': 'custom.js.jinja',
-        'js/custom_local.js': 'custom.js.jinja'
+        'js/custom_local.js': 'custom.js.jinja',
+        'js/search.js': 'search.js.jinja'
     }
 
     address_config = {}
@@ -258,7 +264,6 @@ def render_html(config):
     if not address_config.get('local_address') or not address_config.get('remote_address'):
         log.info("Must define local_address and remote_address in --config file")
         parser.print_usage()
-        sys.exit(1)
 
     for output, templatename in rendermap.items():
         if os.path.exists(output):
@@ -275,11 +280,16 @@ def render_html(config):
                 jsfile = "custom_local.js"
             outfp.write(env.get_template(templatename).render(
                 gameinfo=gameinfo,
+                away=gameinfo_json.get('away'),
+                home=gameinfo_json.get('home'),
+                sport=gameinfo_json.get('sport'),
                 station_readable=str(station).replace('.', '_'),
                 jsfile=jsfile,
                 server_host=host,
                 local=('local' in output)
             ))
+            if output == 'tuner.html':
+                json.dumps(gameinfo_json, indent=2)
             outfp.flush()
     check_call(['make', 'deploy'],stdout=DEVNULL,stderr=DEVNULL)
 
@@ -305,23 +315,27 @@ def schedule_tune(config, exit_queue, now=False):
         '-M',
         '-R', '-'
     ]
-    now_time = datetime.datetime.now(datetime.timezone.utc)
 
+    now_time = arrow.utcnow().datetime
+    nice_now = arrow.get(now_time).to("America/Chicago").strftime('%Y-%m-%d %I:%M:%S %p')
+    
     if now:
         start_at = now_time + datetime.timedelta(seconds=10)
         duration_seconds = 180
     else:
-        start_at = iso8601.parse_date(config['scheduled'])
+        start_at = arrow.get(iso8601.parse_date(config['scheduled']))
 
-    sleep_duration = (start_at - (datetime.timedelta(seconds=600)) - now_time)
-
+    nice_start = arrow.get(start_at).to('America/Chicago').strftime('%Y-%m-%d %I:%M:%S %p')
+    offset = start_at - datetime.timedelta(seconds=600)
+    sleep_duration = offset.timestamp() - now_time.timestamp()
+    
     # if this is more than 4 hours in the past, don't tune
-    if sleep_duration.total_seconds() < -1 * 4 * 3600:
-        print("Not tuning for {} in {}s in the past".format(config.get('odds'), sleep_duration.total_seconds()))
+    if sleep_duration < -1 * 4 * 3600:
+        print("Not tuning for {} in {}s in the past".format(config.get('odds'), sleep_duration))
         return None
-
-    print("Sleeping for {} until {} starts".format(sleep_duration, config['odds']))
-    time.sleep(max(3, sleep_duration.total_seconds()))
+    
+    print(f"Sleeping from {nice_now} until {nice_start} (for {sleep_duration}s) until {config['odds']} starts")
+    time.sleep(max(3, sleep_duration))
     render_html(config)
 
     print("Starting recording of {} for {}s".format(config['odds'], duration_seconds))
@@ -348,6 +362,8 @@ def schedule_tune(config, exit_queue, now=False):
         killall(procs=[pcapture,pencode])
         if normal_exit:
             merge(gameinfo_json, station)
+    if not exit_queue:
+        return normal_exit
     print("Finished tuning and saving recording")
     exit_queue.basic_publish(exchange='', routing_key="schedule", body="exit")
     print("Published exit message")
@@ -429,8 +445,7 @@ def dequeue(now=False):
                     status.write(f'{date}: {message}\n')
                 if os.environ.get('DEBUG'):
                     print(message)
-
-                output_file = get_output_fn(existing['config'])
+                output_file = get_output_fn(existing.get('config')['output_filename'])
                 if os.path.isfile(output_file):
                     print(f"{output_file} already exists, killing existing process")
                     sched_procs[existing['config']['id']]['proc'].kill()
@@ -438,17 +453,20 @@ def dequeue(now=False):
                 return
 
         for proc_id in list(sched_procs.keys()):
-            if not sched_procs[proc_id]['proc'].is_alive():
-                print("Removing finished process {}".format(proc['proc']))
+            proc_obj = sched_procs.get(proc_id)
+            proc = proc_obj.get('proc')
+            if not proc or not proc.is_alive():
+                print("Removing finished process {}".format(proc_id))
                 del sched_procs[proc_id]
+                continue
 
-        output_file = get_output_fn(config)
+        output_file = get_output_fn(config.get('output_filename'))
         if os.path.isfile(output_file):
             with open('status.log', 'a') as status:
                 date = datetime.datetime.now().isoformat()
                 status.write(f'{date}: {output_file} already exists, not tuning\n')
             return
-
+        
         future_tune = Process(target=schedule_tune, args=(config, ch,), kwargs={'now': now}, daemon=True, name=config.get('odds', 'generic-' + config.get('day')))
         future_tune.start()
         sched_procs[config['id']] = {
@@ -458,7 +476,7 @@ def dequeue(now=False):
 
         print("Pending recordings:\n{}".format(
             "\n".join(["{}: {} {} ({})".format(
-                i,x['config']['day'] + ' ' + x['config']['time'], x['config']['odds'], get_output_fn(x['config'])) for i,x in enumerate(sched_procs.values()) if x['proc'].is_alive()])
+                i,x['config']['day'] + ' ' + x['config']['time'], x['config']['odds'], get_output_fn(x['config'].get('output_filename'))) for i,x in enumerate(sched_procs.values()) if x['proc'].is_alive()])
         ))
 
     channel.basic_consume(queue='schedule', on_message_callback=sched_process, auto_ack=True)
@@ -475,6 +493,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser("Tune and stream over web")
     parser.add_argument('--now', action='store_true', help='Start now instead of waiting until time for event')
     parser.add_argument('--sport', choices=list(tuner.keys()))
+    print("now it is {}".format(
+        arrow.utcnow().strftime('%Y-%m-%d %I:%M:%S %p')
+    ))
     args = parser.parse_args()
     render_html({
         'home': "waiting for schedule",
@@ -490,7 +511,7 @@ if __name__ == '__main__':
                 "scheduled": (arrow.utcnow().naive + datetime.timedelta(seconds=5)).isoformat(),
                 "scheduled_cst": (arrow.utcnow().to('US/Central').naive + datetime.timedelta(seconds=5)).isoformat(),
                 "odds": tuner.get(args.sport, {}).get('station')
-            })
+            }, None)
     else:
         try:
             dequeue(now=args.now)
