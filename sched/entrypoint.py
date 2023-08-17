@@ -6,6 +6,8 @@ import time
 import random
 import logging
 import subprocess
+import arrow
+import datetime
 
 from schedule import schedule
 
@@ -22,8 +24,9 @@ if __name__ == '__main__':
     
     while not args:
         schedule()
-        sleep_secs = srand.randint(30, 300)
-        print(f"Sleeping for {sleep_secs}")
+        sleep_secs = random.randint(240, 900)
+        readable = arrow.get(datetime.datetime.utcnow()).to('America/Chicago').shift(seconds=sleep_secs).format('YYYY-MM-DD h:mm:ss A')
+        print(f"Sleeping until {readable}")
         time.sleep(sleep_secs)
 
     print("Executing following: {}".format(args))
