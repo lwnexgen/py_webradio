@@ -1,10 +1,82 @@
-function search() {
-    for (i = 0;i<25;i++) {
-	setTimeout(function(){
-	    window.open("https://www.bing.com/search?form=&q=hmm" + i+100+Math.random(), "_blank")
-	}, 10000);
-	setTimeout(function(){
-	    console.log("asdfasdf")
-	}, 1000);
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function generateHash() {
+    var input = Math.random().toString();
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer)); // convert buffer to byte array
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); // convert bytes to hex string
+    return hashHex.toUpperCase().substring(0,32);
+}
+
+function shuffleArray(array) {
+    // Creating a copy of the array to avoid modifying the original array
+    let shuffledArray = array.slice();
+
+    for (let i = shuffledArray.length - 1; i > 0; i--) {
+        // Generating a random index from 0 to i
+        let j = Math.floor(Math.random() * (i + 1));
+
+        // Swapping elements at indices i and j
+        [shuffledArray[i], shuffledArray[j]] = [shuffledArray[j], shuffledArray[i]];
+    }
+
+    return shuffledArray;
+}
+
+async function search(N) {
+    // Check if N is an integer
+    if (!Number.isInteger(N) || N <= 0) {
+        console.error("Error: Argument N must be a positive integer.");
+        return;
+    }
+
+    try {
+        // Fetch top story IDs from Hacker News API
+        let response = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        let storyIdsNative = await response.json();
+	let storyIds_ = await storyIdsNative.slice();
+	let storyIds = await shuffleArray(storyIds_);
+	
+        // Get details of top N stories and open Bing search in new tabs
+        for (let i = 0; i < N && i < storyIds.length; i++) {
+            let storyResponse = await fetch(`https://hacker-news.firebaseio.com/v0/item/${storyIds[i]}.json`);
+            if (!storyResponse.ok) {
+                throw new Error(`Story fetch error! status: ${storyResponse.status}`);
+            }
+
+            let story = await storyResponse.json();
+
+            // Open a new tab with Bing search for each story title
+	    var querystr = "";
+            if (story && story.title) {
+		var querystrprev = querystr;
+                querystr = encodeURIComponent(story.title + " - here is a random number! " + Math.random().toString());
+		var hashstr = await generateHash();
+                window.open(
+		    `https://www.bing.com/search?q=${querystr}&qs=n&form=QBRE&sp=-1&lq=0&pq=${querystrprev}&sc=0-48&sk=&cvid=${hashstr}&ghsh=0&ghacc=0&ghpl=`, '_blank');
+            }
+
+	    await delay(3123);
+        }
+    } catch (error) {
+        console.error("Failed to fetch top stories:", error);
     }
 }
+
+// This line is just to expose the function to the window scope when loading the script in console
+window.search = search;
+
+// function search() {
+//     for (i = 0;i<25;i++) {
+// 	var date = new Date().toLocaleString();
+// 	setTimeout(function(){
+// 	    window.open("https://www.bing.com/search?q={{ querystr }}+" + date + Math.random() + "&qs=n&form=QBRE&sp=-1&ghc=1&lq=0&pq={{ queryprev }}&sc=10-11&sk=&cvid=C078AA7AA50E4E679B099F5CA8194C70&ghsh=0&ghacc=0&ghpl=", "_blank")
+// 	}, 1000 * i);
+//     }
+// }

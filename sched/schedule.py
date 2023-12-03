@@ -56,8 +56,8 @@ preferred_odds = {
 
 favorites = {
     'nfl': ['Packers-gb'],
-    'ncaaf': ['Wisconsin-WIS'],
-    'ncaab': ['Wisconsin-WIS'],
+    'ncaaf': ['Wisconsin-WISC'],
+    'ncaab': ['Wisconsin-WISC'],
     'nba': ['milwaukee'],
     'mlb': ['milwaukee-mil']
 }
@@ -142,6 +142,10 @@ def scrape_matchup(matchup_blob, headers, sport):
         time=matchup['time']
     ))
 
+    print(
+        json.dumps(matchup, indent=2)
+    )
+    
     return matchup
 
 def puppet_scrape(url):
@@ -195,7 +199,6 @@ def scrape_sport_favorite(sport, url, favorite):
             continue
         print(f"{_matchup} looks like it involves {favorite}")
         matchup_soup = Soup(requests.get(urljoin(url, _matchup)).text, features="html.parser")
-        
         try:
             json_info = json.loads(matchup_soup.findAll('script', {'type':'application/json'})[0].string).get('props', {}).get('pageProps',{}).get('data', {}).get('gameByAbbr')
             date = arrow.get(json_info.get('scheduledTime')).to('America/Chicago')
@@ -248,12 +251,18 @@ def scrape_sport(sport, url, favorite_list):
         matchups += scrape_sport_favorite(sport, url, favorite)
     return matchups
 
-def scrape():
+def scrape(to_scrape=None):
     """
     Scrape all sports
     """
     matchups = []
-    for sport, url in SOURCES.items():
+    if to_scrape:
+        srcs = {
+            to_scrape: SOURCES.get(to_scrape)
+        }
+    else:
+        srcs = SOURCES
+    for sport, url in srcs.items():
         favorite_list = favorites.get(sport, [])
         print(f"Scraping {sport} from {url} using {favorite_list}")
         matchups += scrape_sport(sport, url, favorite_list)
@@ -291,14 +300,17 @@ def rmq_connect():
         return rmq, channel
     return None, None
 
-def schedule(skipmq=False, show_time_only=False):
+def schedule(skipmq=False, show_time_only=False, sport='*'):
     """
     Scrape all upcoming events for my favorite teams over the next couple of days
 
     skipmq: don't try to add to rabbitmq
     show_time_only: show timestamp of first event (for passing to libfaketime)
     """
-    matchups = scrape()
+    if sport == '*':
+        matchups = scrape()
+    else:
+        matchups = scrape(to_scrape=sport)
     upcoming = []
     rmq = None
     for matchup in sorted(matchups, key=lambda x: x['scheduled']):
@@ -321,12 +333,16 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(sys.argv[0])))
     
     parser = argparse.ArgumentParser("Schedule events based on published odds")
+    parser.add_argument('--sport', choices=list(SOURCES.keys()))
     parser.add_argument('--time', action='store_true', help='Show time of events only')
     args = parser.parse_args()
     
     while True:
         try:
-            schedule(skipmq=True, show_time_only=args.time)
+            sport = '*'
+            if args.sport:
+                sport = args.sport
+            schedule(skipmq=True, show_time_only=args.time, sport=sport)
             if args.time:
                 break
             time.sleep(1000)

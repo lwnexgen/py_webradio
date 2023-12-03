@@ -26,6 +26,7 @@ import pika
 import pint
 import iso8601
 import arrow
+import requests
 
 log = logging.getLogger()
 
@@ -278,6 +279,12 @@ def render_html(config):
             if 'local' in output:
                 host = address_config.get('local_address')
                 jsfile = "custom_local.js"
+
+            # querystr = '+'.join(gameinfo_json.get('odds').split()) + '+'
+            top_id = requests.get('https://hacker-news.firebaseio.com/v0/topstories.json').json()[0]
+            top_story = requests.get(f'https://hacker-news.firebaseio.com/v0/item/{top_id}.json').json()['title']
+            from urllib.parse import quote            
+            querystr = quote(top_story)
             outfp.write(env.get_template(templatename).render(
                 gameinfo=gameinfo,
                 away=gameinfo_json.get('away'),
@@ -286,7 +293,8 @@ def render_html(config):
                 station_readable=str(station).replace('.', '_'),
                 jsfile=jsfile,
                 server_host=host,
-                local=('local' in output)
+                local=('local' in output),
+                querystr=querystr
             ))
             if output == 'tuner.html':
                 json.dumps(gameinfo_json, indent=2)

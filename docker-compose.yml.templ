@@ -19,10 +19,6 @@ services:
       - ./sched/fscfg.json:/tmp/fscfg.json
       - /var/run/docker.sock:/var/run/docker.sock:rw
       - CODEDIR/py_webradio/schedule_skip.log:/tmp/schedule_skip.log:rw
-    logging:
-      options:
-        max-size: "200k"
-        max-file: "10"
     restart: always
   tuner:
     build: tuner/
@@ -35,10 +31,6 @@ services:
       - ./tuner/tune.py:/tmp/pysched/tune.py:ro
       - CODEDIR/py_webradio/status.log:/tmp/pysched/status.log:rw
       - CODEDIR/py_webradio/merge.log:/tmp/pysched/merge.log:rw
-    logging:
-      options:
-        max-size: "200k"
-        max-file: "10"
     depends_on:
       - rmq
       - sched
@@ -72,10 +64,6 @@ services:
       - server/server-env.env
     ports:
       - "DEFINEIP:443:443"
-    logging:
-      options:
-        max-size: "200k"
-        max-file: "10"
     depends_on:
       - letsencrypt
   letsencrypt:
