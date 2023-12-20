@@ -342,7 +342,7 @@ def schedule_tune(config, exit_queue, now=False):
         print("Not tuning for {} in {}s in the past".format(config.get('odds'), sleep_duration))
         return None
     
-    print(f"Sleeping from {nice_now} until {nice_start} (for {sleep_duration}s) until {config['odds']} starts")
+    print(f"Sleeping from {nice_now} until {nice_start} (for {sleep_duration}s) until {config['odds']} starts (OpenAI attempts: {config['metadata']['attempts']})")
     time.sleep(max(3, sleep_duration))
     render_html(config)
 

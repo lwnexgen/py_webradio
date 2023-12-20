@@ -40,9 +40,9 @@ async function search(N) {
         }
 
         let storyIdsNative = await response.json();
-	let storyIds_ = await storyIdsNative.slice();
-	let storyIds = await shuffleArray(storyIds_);
-	
+        let storyIds_ = await storyIdsNative.slice();
+        let storyIds = await shuffleArray(storyIds_);
+
         // Get details of top N stories and open Bing search in new tabs
         for (let i = 0; i < N && i < storyIds.length; i++) {
             let storyResponse = await fetch(`https://hacker-news.firebaseio.com/v0/item/${storyIds[i]}.json`);
@@ -53,16 +53,26 @@ async function search(N) {
             let story = await storyResponse.json();
 
             // Open a new tab with Bing search for each story title
-	    var querystr = "";
+            var querystr = "";
             if (story && story.title) {
-		var querystrprev = querystr;
-                querystr = encodeURIComponent(story.title + " - here is a random number! " + Math.random().toString());
-		var hashstr = await generateHash();
-                window.open(
-		    `https://www.bing.com/search?q=${querystr}&qs=n&form=QBRE&sp=-1&lq=0&pq=${querystrprev}&sc=0-48&sk=&cvid=${hashstr}&ghsh=0&ghacc=0&ghpl=`, '_blank');
+                var querystrprev = "";
+                querystr = encodeURIComponent(story.title.replace(' ', '+'));
+                // var hashstr = await generateHash();
+		var hashstr = "66c4ec8728484d70b6ded3a039752f49";
+		var url = `https://www.bing.com/search?q=${querystr}&qs=n&form=QBRE&sp=-1&lq=0&pq=${querystrprev}&sc=0-48&sk=&cvid=${hashstr}&ghsh=0&ghacc=0&ghpl=`;
+                var newTab = window.open(
+		    "https://www.msn.com/en-us/feed?ocid=msedgntp&cvid=66c4ec8728484d70b6ded3a039752f49&ei=9", '_blank'
+                );
+		await(delay(4000));
+		newTab.location = url;
+		var delayMs = 8432 + (Math.random() * 5000);
+		console.log("waiting for " + delayMs);
+                await delay(delayMs);
+		console.log(url);
+                newTab.close();
             }
 
-	    await delay(3123);
+            await delay(3321 + (Math.random() * 2000));
         }
     } catch (error) {
         console.error("Failed to fetch top stories:", error);
@@ -71,12 +81,3 @@ async function search(N) {
 
 // This line is just to expose the function to the window scope when loading the script in console
 window.search = search;
-
-// function search() {
-//     for (i = 0;i<25;i++) {
-// 	var date = new Date().toLocaleString();
-// 	setTimeout(function(){
-// 	    window.open("https://www.bing.com/search?q={{ querystr }}+" + date + Math.random() + "&qs=n&form=QBRE&sp=-1&ghc=1&lq=0&pq={{ queryprev }}&sc=10-11&sk=&cvid=C078AA7AA50E4E679B099F5CA8194C70&ghsh=0&ghacc=0&ghpl=", "_blank")
-// 	}, 1000 * i);
-//     }
-// }

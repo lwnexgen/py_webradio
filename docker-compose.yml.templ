@@ -14,7 +14,6 @@ services:
     env_file:
       - sched/sched-env.env
     volumes:
-      - ./sched/schedule.py:/tmp/schedule.py
       - ./sched/tuner.json:/tmp/tuner.json
       - ./sched/fscfg.json:/tmp/fscfg.json
       - /var/run/docker.sock:/var/run/docker.sock:rw

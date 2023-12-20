@@ -13,8 +13,9 @@ import arrow
 # pika for rabbitmq integration
 import pika
 
-from pipes import quote
 from urllib.parse import urlparse, urljoin
+
+from content_scraper.python_scrape import main as ai_scrape
 
 import argparse
 import datetime
@@ -38,202 +39,38 @@ TEAM_MAP = {
     }
 }
 
+#     "nba": "https://www.sportsline.com/nba/picks/"
+#     'nba': ['MIL'],
 SOURCES = {
     "mlb": "https://www.sportsline.com/mlb/picks/",
     "ncaaf": "https://www.sportsline.com/college-football/picks/",
     "nfl": "https://www.sportsline.com/nfl/picks/",
-    "ncaab": "https://www.sportsline.com/college-basketball/picks/",
-    "nba": "https://www.sportsline.com/nba/picks/"
-}
-
-preferred_odds = {
-    "mlb": "moneyLine",
-    "ncaaf": "spread",
-    "nba": "spread",
-    "nfl": "spread",
-    "ncaab": "spread"
+    "ncaab": "https://www.sportsline.com/college-basketball/picks/"
 }
 
 favorites = {
-    'nfl': ['Packers-gb'],
-    'ncaaf': ['Wisconsin-WISC'],
-    'ncaab': ['Wisconsin-WISC'],
-    'nba': ['milwaukee'],
-    'mlb': ['milwaukee-mil']
+    'nfl': ['GB'],
+    'ncaaf': ['WISC'],
+    'ncaab': ['WISC'],
+    'mlb': ['MIL']
 }
-
-seasons = {
-    "mlb": "summer",
-    "nfl": "winter",
-    "ncaab": "winter",
-    "nba": "winter",
-    "ncaaf": "winter"
-}
-
-
-leagues = {
-    "ncaaf": 2,
-    "ncaab": 116,
-    "mlb": 1,
-    "nfl": 1
-}
-
-def scrape_matchup(matchup_blob, headers, sport):
-    try:
-        datestr = matchup_blob.get('date')['start']
-    except:
-        datestr = matchup_blob.get('date')
-
-    scheduled = arrow.get(datestr).to('UTC')
-    scheduled_cst = arrow.get(datestr).to('America/Chicago')
-
-    matchup_blob["teams"] = {
-        "home": {
-            "name": matchup_blob["home"]
-        },
-
-        "away": {
-            "name": matchup_blob["away"]
-        }
-    }
-    
-    home = matchup_blob["teams"]["home"]["name"]
-
-    try:
-        away = matchup_blob["teams"]["away"]["name"]
-    except:
-        away = matchup_blob["teams"]["visitors"]["name"]
-    
-    odds = matchup_blob.get('odds')
-
-    day = scheduled_cst.format("ddd MMM Do YYYY")
-    time = scheduled_cst.format('h:mm A')
-
-    nice_away = away.replace('.','')
-    nice_home = home.replace('.','')
-    date_day = scheduled_cst.format('YYYY-MM-DD-hh-mm-A')
-    output_filename = "-".join(f"{nice_away}-vs-{nice_home}-{sport}-{date_day}".split())
-    
-    hl = hashlib.md5()
-    hl.update((home + away + sport + day).encode('utf-8'))
-    
-    matchup = {
-        "sport": sport,
-        "raw_date": datestr,
-        "scheduled": scheduled.isoformat(),
-        "scheduled_cst": scheduled_cst.isoformat(),
-        "scheduled_at": scheduled_cst.shift(minutes=-10).strftime("%I:%M %p %Y-%m-%d"),
-        "scheduled_sort": scheduled_cst.shift(minutes=-10).strftime("%Y-%m-%d %I:%M %p"),
-        "day": day,
-        "time": time,
-        "away": away,
-        "home": home,
-        "odds": "{} ({}) @ {} ({})".format(
-            away, odds.get('away'),
-            home, odds.get('home')
-        ),
-        "output_filename": output_filename,
-        "id": hl.hexdigest()
-    }
-
-    print("Queuing {odds} {day} {time}".format(
-        odds=matchup['odds'],
-        day=matchup['day'],
-        time=matchup['time']
-    ))
-
-    print(
-        json.dumps(matchup, indent=2)
-    )
-    
-    return matchup
-
-def puppet_scrape(url):
-    script = ""
-    with open('sportsline.js') as sp:
-        script = sp.read().replace('SCRAPE_URL', url)
-    puppet_cmd = ['docker', 'run', '--dns', '192.168.0.102', '-i', '--init', '--cap-add=SYS_ADMIN', '--rm', 'ghcr.io/puppeteer/puppeteer:latest', 'node', '-e', script]
-    return subprocess.check_output(puppet_cmd)
 
 def scrape_sport_favorite(sport, url, favorite):
-    url = url.format(TEAM_MAP.get(favorite, favorite))
-
-    hl = hashlib.md5()
-    hl.update(str(datetime.datetime.now()).encode('utf-8'))
-
-    host = urlparse(url).netloc
-
-    headers = {
-        'User-Agent': hl.hexdigest()
+    cfg = {
+        'debug': False,
+        'odds_url': url,
+        'team': favorite,
+        'sport': sport,
+        'endpoint': "https://api.openai.com/v1"
     }
-
-    data = {
-        "errors": None
-    }
-
+    scraped = ai_scrape(cfg)
     try:
-        src = puppet_scrape(url)
-        soup = Soup(src, features="html.parser")
-        data["soup"] = soup
-        data["response"] = [ x for x in soup.find_all('a') if 'Matchup Analysis' in x.text ]
+        matchups = json.loads(str(scraped))
+        return matchups
     except:
-        data['errors'] = traceback.format_exc()
-        
-    if data['errors']:
-        print(json.dumps(data, indent=2))
-        return []
-
-    matchups = []
-    seen = set()
-    for _matchup in sorted(x.get('href') for x in data['response']):        
-        fav_match = False
-        for chunk in favorite.split('-'):
-            if len(chunk) == 1:
-                raise f"{chunk} is only 1 character long!"
-            if chunk.lower() in _matchup.lower():
-                fav_match = True
-        if not fav_match:
-            with open('/tmp/schedule_skip.log', 'a') as sk:
-                sk.write(f"{_matchup} does not look like it involves {favorite}\n")
-                sk.flush()
-            continue
-        print(f"{_matchup} looks like it involves {favorite}")
-        matchup_soup = Soup(requests.get(urljoin(url, _matchup)).text, features="html.parser")
-        try:
-            json_info = json.loads(matchup_soup.findAll('script', {'type':'application/json'})[0].string).get('props', {}).get('pageProps',{}).get('data', {}).get('gameByAbbr')
-            date = arrow.get(json_info.get('scheduledTime')).to('America/Chicago')
-            home = f"{json_info['homeTeam']['location']} {json_info['homeTeam']['nickName']}"
-            away = f"{json_info['awayTeam']['location']} {json_info['awayTeam']['nickName']}"            
-        except:
-            print("Unable to grab JSON info off of webpage")
-            continue
-        
-        odds = {
-            "home": "pk",
-            "away": "pk"
-        }
-
-        try:
-            preferred_line = preferred_odds.get(sport)
-            if preferred_line == 'moneyLine':
-                key = 'outcomeOdds'
-            else:
-                key = 'value'
-            odds['home'] = json_info['odds'][preferred_line]['home'][key]
-            odds['away'] = json_info['odds'][preferred_line]['away'][key]
-        except:
-            pass
-        
-        matchup = {
-            "date": date.isoformat(),
-            "home": home,
-            "away": away,
-            "odds": odds
-        }
-
-        matchups.append(scrape_matchup(matchup, headers, sport))
-        
-    return matchups
+        print(os.getcwd())
+        print(scraped)
+        raise
 
 def scrape_sport(sport, url, favorite_list):
     """
@@ -277,7 +114,7 @@ def queue(config, rmq, queuename='schedule'):
         routing_key=queuename,
         body=json.dumps(config)
     )
-    print("Queued: {} [{}]".format(config.get('odds'), config.get('id')))
+    print(f"Queued: {config['odds']} [{config['id']}] (API attempts: {config['metadata']['attempts']})")
 
 def rmq_connect():
     queuename = 'schedule'
