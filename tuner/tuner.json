@@ -1,27 +1,27 @@
 {
   "nfl": {
     "station": 101.5,
-    "duration": 3.5
+    "duration": 4.0
   },
   "ncaab": {
     "station": 101.5,
-    "duration": 3
+    "duration": 3.0
   },
   "ncaaf": {
     "station": 101.5,
     "duration": 4.5
   },
   "mlb": {
-    "station": 96.7,
+    "station": 100.5,
     "duration": 3.5
   },
   "nba": {
     "station": 100.5,
-    "duration": 3
+    "duration": 3.0
   },
   "studio_m": {
     "station": 105.5,
-    "duration": 1
+    "duration": 1.5
   },
   "delay": {
     "station": 101.5,

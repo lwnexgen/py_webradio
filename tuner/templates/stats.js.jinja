@@ -1,0 +1,16 @@
+// Create a connection to the server's event stream
+const eventSource = new EventSource('/events');
+
+// This function is called every time the server sends a message
+eventSource.onmessage = function(event) {
+    // event.data contains the text string from the server
+    const dataContainer = document.getElementById('data-container');
+    dataContainer.textContent = event.data;
+};
+
+// Optional: Handle connection errors
+eventSource.onerror = function(err) {
+    console.error("EventSource failed:", err);
+    const dataContainer = document.getElementById('data-container');
+    dataContainer.textContent = "Server connection lost.";
+};

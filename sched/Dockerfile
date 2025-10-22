@@ -1,30 +1,35 @@
-FROM fedora:34
+FROM ubuntu:24.04
 
-# bootstrap dependencies
-RUN dnf -y install make dnf-plugins-core
-RUN dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
-RUN dnf -y install python-virtualenv python2 docker-ce-cli openssh-clients
-
-RUN useradd pysched --uid 1000
-RUN groupmod -g 988 docker
-RUN usermod -a -G docker pysched
-
-RUN mkdir -p /app /etc/ssh
-COPY teams2.json entrypoint.py schedule.py __init__.py sportsline.js wol_creds id_rsa_windows id_rsa_wsl ssh_config /app/
-COPY known_hosts /etc/ssh/ssh_known_hosts
-
-RUN chown -R pysched:pysched /app
-
-USER pysched
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install build-essential make python3-pip python3-venv dnsutils -y
 
 WORKDIR /app
 
-COPY Makefile.sched Makefile
-COPY requirements.txt ./
+RUN python3 -m venv pysched
+RUN /app/pysched/bin/pip install -U \
+    playwright \
+    && echo "done"
 
-RUN make pysched
+RUN /app/pysched/bin/playwright install chromium
+RUN /app/pysched/bin/playwright install-deps
 
-RUN mkdir -p /app/content_scraper
-COPY content_scraper /app/content_scraper
+RUN apt-get install curl -y
+RUN curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz
+RUN mkdir -p /app/ollama && tar -xzf ollama-linux-amd64.tgz -C /app/ollama
 
+RUN /app/pysched/bin/pip install -U \
+    arrow \
+    beautifulsoup4 \
+    openai \
+    pillow \
+    pydantic \
+    requests \
+    pika \
+    && echo "done"
+
+RUN /app/pysched/bin/pip freeze
+
+COPY teams2.json entrypoint.py schedulellm.py __init__.py sportsline.js wol_creds id_rsa_windows id_rsa_wsl ssh_config /app/
+
+ENV PYTHONUNBUFFERED=1
 ENTRYPOINT /app/entrypoint.py

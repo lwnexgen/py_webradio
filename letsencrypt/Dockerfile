@@ -1,11 +1,10 @@
-FROM nginx:1
+FROM nginx:1.24
 
 # copy base deps - TODO - fetch from AWS Secrets Manager
 COPY install-or-update.sh /tmp/
 
 # pip deps
-RUN apt-get update
-RUN apt-get install wget nginx-full nginx-common python3-venv libaugeas0 procps libnginx-mod-http-geoip -y
+RUN apt-get update && apt-get install python3 python3-venv -y
 RUN python3 -m venv /opt/certbot
 RUN /opt/certbot/bin/pip install --upgrade pip
 

@@ -7,4 +7,11 @@ deploy:
 	mkdir -p /var/www/html/webtune_live
 	rm -rf /var/www/html/webtune_live/{js,css,manifest*,tuner.html}
 	cp -r js css tuner.html /var/www/html/webtune_live/
-	cp favicon.ico /var/www/html/
+	cp favicon.ico /var/www/html/webtune_live/
+
+	mkdir -p /var/www/html/webtune_live_local
+	rm -rf /var/www/html/webtune_live_local/{js,css,manifest*,tuner.html}
+	pushd /var/www/html/webtune_live_local ; ln -sf ../webtune_live/data ./data ; popd
+	cp -r js css tuner.html /var/www/html/webtune_live_local/
+	cp favicon.ico /var/www/html/webtune_live_local/
+	pushd /var/www/html/webtune_live_local ; mv js/custom_local.js js/custom.js ; popd

@@ -3,7 +3,8 @@ if [ ! -z "$LIVE" ] ; then
     exec /bin/bash
 fi
 
-rm -f /var/www/html/webtune_live/*.{mp3,m3u8}
+rm -f /var/www/html/webtune_live/data/*.{mp3,m3u8}
+mkdir -p /var/www/html/webtune_live/data
 
 if [ ! -z "$STATION" ] ; then
     if [ ! -z "$DURATION" ] ; then

@@ -1,9 +1,9 @@
-version: "3.3"
 services:
   rmq:
     image: rabbitmq:3.9-management
     ports:
       - DEFINEIP:60808:15672
+    restart: unless-stopped
   sched:
     build: sched/
     image: pywebsched:latest
@@ -11,14 +11,28 @@ services:
       - 8.8.8.8
     depends_on:
       - rmq
-    env_file:
-      - sched/sched-env.env
     volumes:
-      - ./sched/tuner.json:/tmp/tuner.json
-      - ./sched/fscfg.json:/tmp/fscfg.json
-      - /var/run/docker.sock:/var/run/docker.sock:rw
-      - CODEDIR/py_webradio/schedule_skip.log:/tmp/schedule_skip.log:rw
-    restart: always
+      - ./sched/schedulellm.py:/schedulellm.py:ro
+      - /mnt/megapenthes/Development/py_webradio/screenshots:/app/results:rw
+    restart: unless-stopped
+  ollama-server:
+    build: ollama
+    environment:
+      OLLAMA_MODELS: /app/ollama-models
+      OLLAMA_KEEP_ALIVE: 0
+    command: >
+      serve
+    volumes:
+      - /mnt/megapenthes/Development/ollama:/app/ollama-models:rw
+    ports:
+      - "DEFINEIP:11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
   tuner:
     build: tuner/
     image: pywebtuner:latest
@@ -45,14 +59,42 @@ services:
       # This is part of my reverse proxy setup; see below.
       ND_BASEURL: /navidrome
       # Re-scan the music library every 15 minutes.
-      ND_LOGLEVEL: info
+      ND_LASTFM_ENABLED: "false"
+      ND_LOGLEVEL: debug
       ND_SESSIONTIMEOUT: 24h
     volumes:
       - "CODEDIR/navidrome-service/data:/data"
       - "BASEDIR/Music:/music:ro"
+  home-assistant:
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    container_name: home-assistant
+    restart: unless-stopped
+    volumes:
+      - /mnt/megapenthes/Development/home-assistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    privileged: true
+    network_mode: host
+  lms:
+    container_name: lms
+    image: lmscommunity/lyrionmusicserver
+    network_mode: host
+    volumes:
+      - /mnt/megapenthes/Development/home-assistant/lms/config:/config:rw
+      - /mnt/megapenthes/Development/home-assistant/lms/playlist:/playlist:rw
+      - /mnt/megapenthes/Music:/music:ro
+    restart: always
+  samba:
+    image: samba:latest
+    restart: unless-stopped
+    ports:
+      - "DEFINEIP:139:139"
+      - "DEFINEIP:445:445"
+    volumes:
+      - /mnt/megapenthes:/mnt/megapenthes:rw
   server:
     build: server/
     image: pywebserver:latest
+    restart: unless-stopped
     volumes:
       - webdata:/usr/share/nginx/html:ro
       - certs:/etc/letsencrypt:rw
@@ -63,6 +105,7 @@ services:
       - server/server-env.env
     ports:
       - "DEFINEIP:443:443"
+      - "DEFINEIP:60000:80"
     depends_on:
       - letsencrypt
   letsencrypt:
@@ -79,3 +122,7 @@ services:
 volumes:
   webdata:
   certs:
+  dlnalog:
+  dlnacfg:
+  jfcfg:
+  jfcache:
