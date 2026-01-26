@@ -8,9 +8,9 @@ RUN apt-get update && apt-get install -y python3-full python3-pip python3-venv x
 RUN mkdir -p /app
 WORKDIR /app
 
-RUN curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz
+# RUN curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz
+RUN curl -L https://github.com/ollama/ollama/releases/download/v0.12.7-rc1/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz
 RUN mkdir -p /app/ollama && tar -xzf ollama-linux-amd64.tgz -C /app/ollama
 
 ENV OLLAMA_HOST=0.0.0.0
 ENTRYPOINT ["/app/ollama/bin/ollama"]
-

@@ -26,7 +26,7 @@ demo: stop disk
 	cat sched-env >> tuner/tuner-env.env
 	cat sched-env >> server/server-env.env
 	cat demo-env >> tuner/tuner-env.env
-	echo "$(shell sched/pysched/bin/python sched/schedule.py --sport=ncaaf --time | grep FAKETIME | tail -n 1)" >> tuner/tuner-env.env
+	echo "$(shell sched/pysched/bin/python sched/schedulellm.py --sport=ncaaf --time | grep FAKETIME | tail -n 1)" >> tuner/tuner-env.env
 	echo "FAKETIME_DONT_RESET=1" >> tuner/tuner-env.
 	cat tuner/tuner-env.env
 	docker compose up --detach

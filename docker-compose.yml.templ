@@ -19,7 +19,7 @@ services:
     build: ollama
     environment:
       OLLAMA_MODELS: /app/ollama-models
-      OLLAMA_KEEP_ALIVE: 0
+      OLLAMA_KEEP_ALIVE: 0      
     command: >
       serve
     volumes:
@@ -111,6 +111,8 @@ services:
   letsencrypt:
     build: letsencrypt/
     image: letsencrypt:latest
+    dns:
+      - 8.8.8.8
     volumes:
       - certs:/etc/letsencrypt:rw
       - webdata:/var/www/html:rw

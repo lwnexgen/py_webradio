@@ -1,5 +1,5 @@
 // Create a connection to the server's event stream
-const eventSource = new EventSource('/events');
+const eventSource = new EventSource('http://192.168.0.197:60000/stream');
 
 // This function is called every time the server sends a message
 eventSource.onmessage = function(event) {
