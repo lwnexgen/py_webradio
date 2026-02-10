@@ -16,7 +16,8 @@ services:
       - /mnt/megapenthes/Development/py_webradio/screenshots:/app/results:rw
     restart: unless-stopped
   ollama-server:
-    build: ollama
+    build: ollama/
+    image: pyollama:latest
     environment:
       OLLAMA_MODELS: /app/ollama-models
       OLLAMA_KEEP_ALIVE: 0      
@@ -65,25 +66,8 @@ services:
     volumes:
       - "CODEDIR/navidrome-service/data:/data"
       - "BASEDIR/Music:/music:ro"
-  home-assistant:
-    image: "ghcr.io/home-assistant/home-assistant:stable"
-    container_name: home-assistant
-    restart: unless-stopped
-    volumes:
-      - /mnt/megapenthes/Development/home-assistant:/config
-      - /etc/localtime:/etc/localtime:ro
-    privileged: true
-    network_mode: host
-  lms:
-    container_name: lms
-    image: lmscommunity/lyrionmusicserver
-    network_mode: host
-    volumes:
-      - /mnt/megapenthes/Development/home-assistant/lms/config:/config:rw
-      - /mnt/megapenthes/Development/home-assistant/lms/playlist:/playlist:rw
-      - /mnt/megapenthes/Music:/music:ro
-    restart: always
   samba:
+    build: samba/
     image: samba:latest
     restart: unless-stopped
     ports:

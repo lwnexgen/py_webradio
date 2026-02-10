@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install build-essential make python3-pip python3-venv dnsutils -y
+RUN apt-get update && apt-get install build-essential make python3-pip python3-venv dnsutils zstd -y
 
 WORKDIR /app
 
@@ -14,8 +14,9 @@ RUN /app/pysched/bin/playwright install chromium
 RUN /app/pysched/bin/playwright install-deps
 
 RUN apt-get install curl -y
-RUN curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz
-RUN mkdir -p /app/ollama && tar -xzf ollama-linux-amd64.tgz -C /app/ollama
+# RUN curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz
+RUN curl -L https://github.com/ollama/ollama/releases/download/v0.15.2/ollama-linux-amd64.tar.zst -o ollama-linux-amd64.tar.zst
+RUN mkdir -p /app/ollama && tar -I zstd -xvf ollama-linux-amd64.tar.zst -C /app/ollama
 
 RUN /app/pysched/bin/pip install -U \
     arrow \
