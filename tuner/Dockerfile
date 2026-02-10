@@ -31,7 +31,13 @@ RUN cmake .. && make -j4
 FROM fedora:34
 
 # bootstrap dependencies
-RUN dnf -y install https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-34.noarch.rpm https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-34.noarch.rpm && dnf -y install make python-virtualenv python2 portaudio volk soxr ffmpeg strace /usr/bin/find libfaketime
+RUN dnf -y install https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-34.noarch.rpm https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-34.noarch.rpm && dnf -y install make python-virtualenv python2 portaudio volk soxr ffmpeg strace /usr/bin/find libfaketime zstd
+
+# download Python from upstream astral-sh
+RUN curl -L "https://github.com/astral-sh/python-build-standalone/releases/download/20260203/cpython-3.12.12+20260203-x86_64_v2-unknown-linux-gnu-pgo+lto-full.tar.zst" -o /tmp/python.tar.zst
+RUN tar -xf /tmp/python.tar.zst -C /tmp/
+
+ENV PATH="/tmp/python/install/bin:${PATH}"
 
 # Set default workdir
 RUN mkdir -p /tmp/pysched
