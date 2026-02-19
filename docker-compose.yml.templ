@@ -1,4 +1,16 @@
 services:
+  recime:
+    image: reci.me:latest
+    build: /mnt/megapenthes/Development/reci.me
+    ports:
+      - DEFINEIP:54321:5000
+    restart: unless-stopped
+    env_file:
+      - recime/recime-env.env
+    volumes:
+      - ./recime/data:/app/data:rw
+      - ./recime/uploads:/app/uploads:rw
+      - ./recime/results:/app/results:rw
   rmq:
     image: rabbitmq:3.9-management
     ports:
