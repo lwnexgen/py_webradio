@@ -7,8 +7,6 @@ services:
     restart: unless-stopped
     env_file:
       - recime/recime-env.env
-    env:
-      - PROXY_BASEURL="/recime"
     volumes:
       - ./recime/data:/app/data:rw
       - ./recime/uploads:/app/uploads:rw
