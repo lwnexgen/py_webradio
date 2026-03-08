@@ -1,4 +1,4 @@
-FROM nginx:1.24
+FROM nginx:latest
 
 # copy base deps - TODO - fetch from AWS Secrets Manager
 COPY install-or-update.sh /tmp/
