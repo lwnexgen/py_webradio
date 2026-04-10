@@ -1,1 +1,2 @@
-.test-env
+tests/test-env
+tests/test-env-credentials
