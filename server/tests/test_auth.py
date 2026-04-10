@@ -74,18 +74,6 @@ def load_credentials() -> tuple[str, str] | None:
             sys.exit(2)
         return (parts[0], parts[1])
 
-    # Fall back to interactive prompt.
-    print("No WEBRADIO_CREDENTIALS env var set — enter credentials interactively.")
-    username = input("Username: ").strip()
-    if not username:
-        print("No username provided; skipping authenticated checks.", file=sys.stderr)
-        return None
-    password = getpass.getpass("Password: ")
-    if not password:
-        print("No password provided; skipping authenticated checks.", file=sys.stderr)
-        return None
-    return (username, password)
-
 
 def check_unauthenticated(
     base_url: str, endpoint: Endpoint
@@ -103,7 +91,11 @@ def check_unauthenticated(
             if code == 401:
                 return PASS, code, "correctly returned 401 Unauthorized"
             else:
-                return FAIL, code, f"expected 401 but got {code} — endpoint may be unprotected"
+                return (
+                    FAIL,
+                    code,
+                    f"expected 401 but got {code} — endpoint may be unprotected",
+                )
 
         elif endpoint.unauth_expect == "redirect":
             if code in (301, 302, 303, 307, 308):
@@ -124,7 +116,11 @@ def check_unauthenticated(
 
         elif endpoint.unauth_expect == "app_handles_auth":
             if 200 <= code < 300:
-                return PASS, code, "app shell served; auth is handled by the application"
+                return (
+                    PASS,
+                    code,
+                    "app shell served; auth is handled by the application",
+                )
             else:
                 return FAIL, code, f"expected 2xx (app handles auth) but got {code}"
 
@@ -145,12 +141,18 @@ def check_authenticated(
     """
     url = base_url.rstrip("/") + endpoint.path
     try:
-        response = requests.get(url, auth=credentials, timeout=10, allow_redirects=False)
+        response = requests.get(
+            url, auth=credentials, timeout=10, allow_redirects=False
+        )
         code = response.status_code
         if code != 401:
             return PASS, code, f"authenticated request returned {code}"
         else:
-            return FAIL, code, "credentials provided but still got 401 — check credentials"
+            return (
+                FAIL,
+                code,
+                "credentials provided but still got 401 — check credentials",
+            )
     except requests.ConnectionError as e:
         return ERROR, None, f"connection error: {e}"
     except requests.Timeout:
@@ -168,7 +170,9 @@ def wait_for_server(base_url: str) -> bool:
             return True
         except requests.ConnectionError:
             if time.time() - start_time > 60:
-                print("Error: Server did not respond within 60 seconds.", file=sys.stderr)
+                print(
+                    "Error: Server did not respond within 60 seconds.", file=sys.stderr
+                )
                 return False
             print("Waiting for server to be up...", end="\r")
             time.sleep(5)
@@ -192,7 +196,9 @@ def run_tests(base_url: str, credentials: tuple[str, str] | None) -> bool:
         expect_label = f"expect {endpoint.unauth_expect}" + (
             f" → {endpoint.redirect_to}" if endpoint.redirect_to else ""
         )
-        print(f"[{result:5s}] {endpoint.path:<20} ({endpoint.description}; {expect_label})")
+        print(
+            f"[{result:5s}] {endpoint.path:<20} ({endpoint.description}; {expect_label})"
+        )
         print(f"        HTTP {code_str}: {message}")
         if result != PASS:
             all_passed = False
