@@ -9,7 +9,7 @@ RUN mkdir -p /app
 WORKDIR /app
 
 # RUN curl -L https://ollama.com/download/ollama-linux-amd64.tgz -o ollama-linux-amd64.tgz
-RUN curl -L https://github.com/ollama/ollama/releases/download/v0.15.2/ollama-linux-amd64.tar.zst -o ollama-linux-amd64.tar.zst
+RUN curl -L https://github.com/ollama/ollama/releases/download/v0.20.2/ollama-linux-amd64.tar.zst -o ollama-linux-amd64.tar.zst
 RUN mkdir -p /app/ollama && tar -I zstd -xvf ollama-linux-amd64.tar.zst -C /app/ollama
 
 ENV OLLAMA_HOST=0.0.0.0

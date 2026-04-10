@@ -537,7 +537,9 @@ def dequeue(now=False):
 
         # flag dead procs, and check for existing queued recordings
         for id, scheduled in sched_procs.items():
-            if id == config.get("id"):
+            if id == config.get("id") or scheduled.get("output_filename") == config.get(
+                "output_filename"
+            ):
                 existing = scheduled
                 break
 
@@ -549,24 +551,6 @@ def dequeue(now=False):
                 )
             )
             return
-
-        if config.get("output_filename"):
-            ticket_price_log_file = Path(
-                os.path.join(
-                    fscfg.get("output_dir", "/tmp"),
-                    config["output_filename"] + "-ticket-prices.log",
-                )
-            )
-            with open(ticket_price_log_file, "a") as f:
-                time_delta = (
-                    arrow.get(config["scheduled"]).to("America/Chicago")
-                    - arrow.now("America/Chicago")
-                ).total_seconds()
-                away = config["away"].replace(" ", "-").replace(".", "")
-                home = config["home"].replace(" ", "-").replace(".", "")
-                ticket_price = config["ticket_price"]
-                price_log = f"{away}@{home} {ticket_price} {time_delta}\n"
-                f.write(price_log)
 
         # if a game with this existing id has been scheduled already,
         # make sure this isn't a reschedule event and just continue
@@ -640,6 +624,29 @@ def dequeue(now=False):
         }
 
         print("Pending recordings:")
+        output_fns = {}
+        for i, x in enumerate(
+            sorted(sched_procs.values(), key=lambda x: x["config"]["scheduled"])
+        ):
+            output_fn = os.path.basename(
+                get_output_fn(x["config"].get("output_filename"))
+            )
+            output_fns.setdefault(output_fn, []).append(x)
+
+        for output_fn, procs in output_fns.items():
+            if len(procs) > 1:
+                print(f"{output_fn} is duplicated for {len(procs)} recordings")
+                # delete everything except the last entry in procs, and kill the processes
+                for x in procs[:-1]:
+                    try:
+                        print(
+                            f"Killing process {x['config']['id']} for duplicated output file {output_fn}"
+                        )
+                        x["proc"].kill()
+                    except:
+                        traceback.print_exc()
+                    del sched_procs[x["config"]["id"]]
+
         for i, x in enumerate(
             sorted(sched_procs.values(), key=lambda x: x["config"]["scheduled"])
         ):

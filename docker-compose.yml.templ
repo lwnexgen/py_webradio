@@ -75,6 +75,7 @@ services:
       ND_LASTFM_ENABLED: "false"
       ND_LOGLEVEL: debug
       ND_SESSIONTIMEOUT: 24h
+      ND_SCANNER_PURGEMISSING: always
     volumes:
       - "CODEDIR/navidrome-service/data:/data"
       - "BASEDIR/Music:/music:ro"
